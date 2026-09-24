@@ -17,7 +17,11 @@ def collect_snr_results():
         for noise_level in MOTION_NOISE_LEVELS:
             random.seed(42)
 
-            samples = collect_samples(
+            (
+                samples,
+                counts,
+                attempts,
+            ) = collect_samples(
                 pre_slip_displacement_limit=pre_slip_limit,
                 motion_noise_std=noise_level,
             )
@@ -49,6 +53,15 @@ def collect_snr_results():
                     "snr": snr,
                     "accuracy": mean_accuracy,
                     "std": std_accuracy,
+                    "yield_samples": counts.get(
+                        "MATERIAL_YIELD",
+                        0,
+                    ),
+                    "slip_samples": counts.get(
+                        "SUPPORT_SLIP",
+                        0,
+                    ),
+                    "attempts": attempts,
                 }
             )
 
@@ -61,11 +74,12 @@ def print_results(results):
     )
 
     print(
-        "SNR | precursor_mm | noise_mm | accuracy | std"
+        "SNR | precursor_mm | noise_mm | "
+        "accuracy | std | attempts"
     )
 
     print(
-        "------------------------------------------------"
+        "------------------------------------------------------------"
     )
 
     for item in sorted(
@@ -77,7 +91,8 @@ def print_results(results):
             f"{item['pre_slip_limit'] * 1000:12.3f} | "
             f"{item['noise_level'] * 1000:8.3f} | "
             f"{item['accuracy']:8.3f} | "
-            f"{item['std']:.3f}"
+            f"{item['std']:.3f} | "
+            f"{item['attempts']:8d}"
         )
 
 
