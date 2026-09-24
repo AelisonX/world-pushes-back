@@ -255,8 +255,8 @@ def test_pair_is_rejected_when_one_twin_is_near_tied():
         make_world(
             static_friction=0.35,
             material_yield_strength=(
-                96_075.0
-            ),
+    1_050_000.0
+),
             container_mass=20.0,
             contact_area=0.0001,
         )
