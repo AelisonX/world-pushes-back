@@ -27,10 +27,12 @@ def build_accuracy_matrix():
         ):
             random.seed(42)
 
-            samples = collect_samples(
-                pre_slip_displacement_limit=(
-                    pre_slip_limit
-                ),
+            (
+                samples,
+                counts,
+                attempts,
+            ) = collect_samples(
+                pre_slip_displacement_limit=pre_slip_limit,
                 motion_noise_std=noise_level,
             )
 
@@ -43,9 +45,7 @@ def build_accuracy_matrix():
             else:
                 mean_accuracy, _ = result
 
-                matrix[i, j] = (
-                    mean_accuracy
-                )
+                matrix[i, j] = mean_accuracy
 
     return matrix
 
@@ -67,33 +67,27 @@ def plot_heatmap(
 
     ax.set_xticks(
         range(
-            len(
-                MOTION_NOISE_LEVELS
-            )
+            len(MOTION_NOISE_LEVELS)
         )
     )
 
     ax.set_xticklabels(
         [
             f"{value * 1000:.2f}"
-            for value
-            in MOTION_NOISE_LEVELS
+            for value in MOTION_NOISE_LEVELS
         ]
     )
 
     ax.set_yticks(
         range(
-            len(
-                PRE_SLIP_LIMITS
-            )
+            len(PRE_SLIP_LIMITS)
         )
     )
 
     ax.set_yticklabels(
         [
             f"{value * 1000:.2f}"
-            for value
-            in PRE_SLIP_LIMITS
+            for value in PRE_SLIP_LIMITS
         ]
     )
 
@@ -157,7 +151,9 @@ def plot_heatmap(
         f"Saved: {output_path}"
     )
 
-    plt.show()
+    plt.close(
+        fig
+    )
 
 
 def main():
