@@ -1,562 +1,503 @@
 # world-pushes-back
 
-A small experimental sandbox for testing whether tool-side interaction can reveal impending physical constraint transitions under a safety budget.
+A small experimental sandbox for testing whether safe tool-side interaction can reveal which physical constraint is likely to fail first.
 
-## Motivating scenario
+The motivating question is simple:
 
-### The Ice Cream Problem
+> When the world resists a command, can a robot tell *why* before pushing harder makes the situation worse?
+
+---
+
+# Motivating scenario
+
+## The Ice Cream Problem
 
 Imagine a robot trying to scoop very hard ice cream from a movable container.
 
-A naive response to resistance is:
+A naive strategy is:
 
-`blocked -> increase force`
+```text
+blocked -> increase force
+```
 
-But increasing force does not guarantee that the scoop will penetrate the material.
+But stronger force can produce two different physical outcomes:
 
-The applied load may instead exceed the support friction of the container, causing the entire container to slide.
+```text
+CONTACT_BLOCKED -> MATERIAL_YIELD
+```
 
-The motivating safety problem is therefore:
+or:
 
-> Blind force escalation can move the environment instead of completing the intended manipulation.
+```text
+CONTACT_BLOCKED -> SUPPORT_SLIP
+```
+
+The tool may penetrate the material.
+
+Or the entire container may move instead.
+
+The safety problem is therefore:
+
+> Blind force escalation can move the environment instead of completing the intended task.
 
 This repository does not attempt to model realistic ice-cream rheology.
 
-The ice-cream scenario is a simple physical story for studying competing thresholds during contact.
+The scenario is a deliberately simple test case for competing physical thresholds.
 
 ---
 
-## Phase 0 research question
-
-Before building an agent or a policy, we ask a simpler question:
-
-> How much information about an impending support-slip transition is available from safe tool-side interaction before significant slip occurs?
-
-This is an identifiability question.
-
-The project does not assume that the answer is positive.
-
-If the minimal physical model makes the transition impossible to infer before it occurs, that is itself a useful Phase 0 result.
-
----
-
-## Physical competition
-
-The first version studies two competing physical thresholds:
-
-1. material yield
-2. support slip
-
-As applied load increases, one threshold is reached first.
-
-Conceptually:
-
-`CONTACT_BLOCKED`
-
-then either:
-
-`MATERIAL_YIELD`
-
-or:
-
-`SUPPORT_SLIP`
-
-If material yield occurs first, the tool begins to penetrate the material.
-
-If support slip occurs first, the container begins to move.
-
-The central question is whether tool-side observations contain enough information to estimate which transition is approaching before unsafe force escalation occurs.
-
----
-
-## Contact-mode state machine
-
-Version 0.1 uses three contact-mode states:
-
-- `CONTACT_BLOCKED`
-- `MATERIAL_YIELD`
-- `SUPPORT_SLIP`
-
-These are states, not fixed episode labels.
-
-A single episode may transition from:
-
-`CONTACT_BLOCKED -> MATERIAL_YIELD`
-
-or:
-
-`CONTACT_BLOCKED -> SUPPORT_SLIP`
-
-The model therefore treats contact mode as a state variable rather than a permanent cause class.
-
----
-
-## Hidden physical parameters
-
-The current minimal parameter set includes:
-
-- material yield strength
-- contact area
-- container mass
-- static friction coefficient
-- kinetic friction coefficient
-- applied force
-- force direction
-
-These parameters determine the thresholds at which material yield or support slip occurs.
-
-Tool stiffness may be added later if required, but it is not part of the first minimal model.
-
----
-
-## Observation space
-
-The default condition provides tool-side observations only.
-
-Candidate observations include:
-
-- `Fx`
-- `Fy`
-- incremental tool-tip motion
-- sensor noise
-
-The reference frame for tool-tip motion must be explicitly defined in the simulator.
-
-Direct container pose or velocity is not available in the default condition.
-
-This is intentional.
-
-The project asks whether useful information about support stability can be extracted without directly observing the container.
-
----
-
-## Action space
-
-Phase 0 does not use a generic `PROBE` action.
-
-All diagnostic interactions must be ordinary physical actions.
-
-Initial candidate actions include:
-
-- `LOW_FORCE_PUSH`
-- `LATERAL_NUDGE`
-- `UNLOAD_AND_HOLD`
-- `STOP`
-
-The purpose of an action may be either:
-
-- task progress
-- information gathering
-- risk reduction
-
-A diagnostic action is therefore an intervention on the physical system, not a direct query for the hidden state.
-
----
-
-## Why identifiability comes first
-
-A policy cannot reliably infer a hidden physical condition if the observation model contains no information that distinguishes it.
-
-Before building an active diagnosis policy, this repository first asks:
-
-> Do different threshold regimes actually produce distinguishable tool-side observation sequences under legal actions?
-
-If they do not, no downstream policy should be credited for solving the problem.
-
-This is the Phase 0 gate.
-
----
-
-## Phase 0 experiment
-
-For each legal action:
-
-1. sample physical parameters from predefined ranges
-2. simulate tool-side observation sequences
-3. separate episodes by resulting transition
-4. train a simple classifier on the observation sequences
-5. evaluate on held-out episodes
-6. report empirical separability
-
-The initial metric is:
-
-**cross-validated pairwise classification accuracy**
-
-This is deliberately simple.
-
-The first goal is to determine whether discriminative information exists at all.
-
-Information-theoretic metrics can be added later if needed.
-
----
-
-## Required experimental assumptions
-
-Any identifiability result depends on the experimental setup.
-
-The following must therefore be stated explicitly:
-
-- observation horizon
-- control timestep
-- force limits
-- parameter sampling ranges
-- sensor noise model
-- action magnitudes
-- initial conditions
-- coordinate reference frames
-- container-pose visibility
-- safety budget
-
-Without these assumptions, an identifiability result is not interpretable.
-
----
-
-## Safety budget
-
-The project is not only interested in classification accuracy.
-
-Diagnostic interaction itself can be risky.
-
-A useful method must operate under measurable limits such as:
-
-- maximum applied force
-- maximum container displacement
-- maximum number of diagnostic actions
-- optional keep-out-zone constraints
-
-The project therefore treats information gathering as a constrained physical process.
-
----
-
-## Core tradeoff
-
-In an idealized Coulomb-friction system, a container below the static-friction threshold may reveal very little about how close it is to slipping.
-
-For example, a small safe push may produce the same observable response for:
-
-- a highly stable container
-- a container very close to the slip threshold
-
-This creates a possible tension:
-
-> More informative probing may require approaching the same physical threshold that safe behavior is trying to avoid.
-
-This information-versus-safety tradeoff is a central Phase 0 question.
-
----
-
-## Pre-slip compliance ablation
-
-The project compares two simplified support models.
-
-### Rigid support
-
-Idealized Coulomb support with no pre-slip support motion.
-
-Before the static-friction threshold is crossed, the support does not reveal how close it is to slipping.
-
-### Compliant support
-
-A simplified model in which small pre-slip displacement increases as loading approaches the support-slip threshold.
-
-This model is not intended as a complete description of real support mechanics.
-
-It is an explicit ablation used to ask:
-
-> If the physical world produces a measurable precursor before a transition, how strong must that precursor be relative to sensor noise before the transition becomes identifiable?
-
----
-
-## Sensor ablation
-
-The project also tests which observation channels contain predictive information.
-
-Compared feature sets include:
-
-- force only
-- motion only
-- horizontal tool-tip motion only
-- full tool-side observation
-
-This helps distinguish genuine multi-channel information from cases where one sensor channel trivially reveals the answer.
-
----
-
-## Minimum sensing requirement
-
-A dedicated sweep varies:
-
-- pre-slip displacement strength
-- motion sensor noise
-
-The goal is to estimate the sensing regime in which pre-transition classification becomes feasible.
-
-A precursor that is much smaller than sensor noise may be effectively unobservable.
-
-A precursor that is much larger than sensor noise may make the transition easy to identify.
-
-The project therefore studies the ratio:
-
-`physical precursor / sensor noise`
-
-as a possible governing quantity.
-
----
-
-## Kill criteria
-
-### Kill criterion A: No useful pre-slip information
-
-If no legal tool-side action can distinguish an impending support-slip transition meaningfully above chance before significant container motion occurs, stop and report that limitation.
-
-Do not silently fix the problem by adding direct container-pose sensing.
-
-### Kill criterion B: No safety benefit
-
-If later active diagnosis improves transition inference but does not reduce unsafe force escalation compared with a push-harder baseline, the original safety motivation is not supported.
-
-### Kill criterion C: Excessive diagnostic cost
-
-If useful inference requires so many diagnostic actions that the interaction becomes impractically slow or violates the safety budget, the method is not useful under the intended setting.
-
----
-
-## Planned phases
-
-### Phase 0: Identifiability
-
-Can impending threshold transitions be distinguished from tool-side interaction at all?
-
-### Phase 1: Diagnostic action value
-
-Which legal physical actions provide the most useful information?
-
-### Phase 2: Active diagnosis
-
-Can an agent choose informative actions under a safety and action budget?
-
-### Phase 3: Safety consequence
-
-Does active diagnosis reduce unsafe force escalation compared with a naive push-harder baseline?
-
----
-
-## Related work positioning
-
-This repository does not claim novelty for:
-
-- feedback control
-- command-observation mismatch
-- forward models
-- Kalman innovation
-- disturbance observers
-- fault detection and isolation
-- interactive perception
-- system identification
-- contact detection
-- model-based control
-
-The narrower goal is to build an inspectable toy system for studying whether safe physical interaction can reveal competing contact-threshold transitions under limited sensing.
-
----
-
-## Running the project
-
-### 1. Install dependencies
-
-Install the required Python packages:
-
-```bash
-pip install -r requirements.txt
-```
-
-### 2. Run regression tests
-
-```bash
-pytest -q
-```
-
-The tests check properties such as:
-
-- higher static friction increases the support-slip threshold
-- a heavier container increases the support-slip threshold
-- stronger material increases the material-yield threshold
-- larger contact area increases the material-yield threshold
-- rigid support produces no artificial pre-slip support motion
-- compliant pre-slip motion grows as the slip threshold is approached
-
-### 3. Run the basic identifiability test
-
-```bash
-python identifiability.py
-```
-
-This tests whether safe pre-transition tool-side observations contain enough information to predict which threshold will be reached first:
-
-- `MATERIAL_YIELD`
-- `SUPPORT_SLIP`
-
-### 4. Run the information-versus-safety force sweep
-
-```bash
-python force_sweep.py
-```
-
-This sweeps probe force and reports:
-
-- pre-transition separability
-- transition rate
-- number of safe samples
-
-The purpose is to test whether stronger probing produces useful information before increasing transition risk.
-
-### 5. Compare rigid and compliant support models
-
-```bash
-python compliance_ablation.py
-```
-
-This compares:
-
-- ideal rigid Coulomb support
-- simplified compliant pre-slip support
-
-The experiment asks whether measurable physical precursors are required for pre-transition identifiability.
-
-### 6. Run the sensor ablation
-
-```bash
-python sensor_ablation.py
-```
-
-This compares:
-
-- force only
-- motion only
-- horizontal tool-tip motion only
-- full tool-side observation
-
-The purpose is to identify which sensor channels actually carry predictive information.
-
-### 7. Sweep precursor strength versus sensor noise
-
-```bash
-python sensing_threshold.py
-```
-
-This tests how classification accuracy changes as:
-
-- pre-slip displacement strength changes
-- motion sensor noise changes
-
-### 8. Generate the sensing heatmap
-
-```bash
-python plot_sensing_heatmap.py
-```
-
-This creates:
-
-```text
-sensing_threshold_heatmap.png
-```
-
-The heatmap visualizes classification accuracy across precursor-strength and sensor-noise conditions.
-
-### 9. Test precursor-to-noise scaling
-
-```bash
-python snr_collapse.py
-```
-
-This creates:
-
-```text
-snr_collapse.png
-```
-
-The experiment tests whether identifiability approximately follows the ratio:
-
-`pre-slip precursor / sensor noise`
-
-### 10. Record Phase 0 results
-
-```bash
-python record_phase0_results.py
-```
-
-This creates:
-
-```text
-phase0_results.csv
-```
-
-The CSV stores:
-
-- support model
-- probe force
-- separability accuracy
-- transition rate
-- safe sample count
-
----
-
-## Reproducibility notes
-
-Current experiments use fixed random seeds where practical.
-
-The simulator is intentionally simple so that:
-
-- physical assumptions remain inspectable
-- hidden state and agent-visible observations remain separate
-- experimental results can be traced to explicit modeling choices
-
-Generated results should be treated as properties of the current toy model, not as claims about real robotic hardware or real ice-cream mechanics.
-
----
-
-## Deliberate exclusions
-
-Version 0.1 does not include:
-
-- geometric jam modes
-- rotational degrees of freedom
-- multi-point contact
-- realistic ice-cream rheology
-- temperature-dependent material models
-- ROS
-- MuJoCo
-- Isaac Sim
-- Gazebo
-- reinforcement learning
-- LLM agents
-- active-inference branding
-- synthetic digestive systems
-
-These may be reconsidered only if the Phase 0 model demonstrates that the core problem is worth extending.
-
----
-
-## Current status
-
-Design-freeze Phase 0 implementation.
-
-No benchmark claim yet.
-
-No policy claim yet.
-
-No claim of general embodied intelligence.
-
-No claim that the hidden physical transition is identifiable in advance.
-
-The current implementation first tests whether the problem itself is solvable under the stated sensing and safety assumptions.
-
----
-
-## Working principle
+# Research principle
 
 > The world can reject a command in different physical ways.
 
 The first question is not how an agent should respond.
 
 The first question is whether the difference can be observed safely.
+
+Only after that question is answered does it make sense to ask which action a robot should choose.
+
+---
+
+# Current research status
+
+```text
+Phase 0    — Identifiability                         COMPLETE
+Phase 0.5  — Confounded Identifiability              COMPLETE
+Attempt 1  — Bayes confirmatory reference            INVALID: ESS
+Phase 0.5b — Bayes numerical repair validation       PASS
+Phase 1    — Diagnostic Action Value                  UNLOCKED
+```
+
+The project is not yet testing an intelligent policy.
+
+---
+
+# Physical model
+
+The current toy model contains two competing future transitions:
+
+- `MATERIAL_YIELD`
+- `SUPPORT_SLIP`
+
+The physical world contains hidden variables including:
+
+- material yield strength
+- contact area
+- container mass
+- static friction
+- kinetic friction
+- contact stiffness
+- support gain
+
+The robot does not directly observe those quantities.
+
+---
+
+# Legal observations
+
+The official tool-side observation is:
+
+```text
+Fx
+Fy
+tip_dx
+tip_dy
+```
+
+Direct container pose is intentionally hidden.
+
+Privileged quantities such as:
+
+```text
+static friction
+material yield strength
+rho
+transition thresholds
+future label
+```
+
+are not legal model inputs.
+
+---
+
+# Rigid and compliant support
+
+Two support models are used.
+
+## Rigid support
+
+Idealized support with no pre-slip support motion.
+
+Under this model, safe observations contain little reliable information about how close the system is to support slip.
+
+## Compliant support
+
+A simplified model in which small horizontal pre-slip motion increases as friction demand approaches the support-slip threshold.
+
+This model is an experimental ablation.
+
+It is not a claim about real surface mechanics.
+
+---
+
+# Phase 0
+
+Phase 0 asked:
+
+> Is useful pre-transition information present at all?
+
+The main result was conditional.
+
+When the physical system exposes a measurable compliant-motion precursor, future transition type becomes distinguishable before the transition occurs.
+
+When the support is rigid, the useful signal largely disappears.
+
+The dominant informative observation channel is:
+
+```text
+tip_dx
+```
+
+or horizontal tool-tip displacement.
+
+Force-only observations provide little useful identification information under the frozen Phase 0.5 design.
+
+---
+
+# Phase 0.5 — Confounded Identifiability
+
+Phase 0.5 introduced a stricter experimental design.
+
+Important controls included:
+
+- paired worlds
+- one future-transition class per twin
+- shared nuisance variables
+- near-tie exclusion
+- safe-cohort filtering
+- pair-preserving train/test split
+- sham control
+- label shuffle
+- rigid-null control
+- privileged `rho` canary
+- pair-cluster bootstrap confidence intervals
+- Monte Carlo Bayes reference
+- preregistered Bayes ESS criterion
+- separate operational and identification priors
+
+---
+
+## Phase 0.5 confirmatory Attempt 1
+
+The frozen confirmatory run produced:
+
+```text
+FULL           AUC = 0.7844
+MOTION_ONLY    AUC = 0.7852
+FORCE_ONLY     AUC = 0.5000
+SHAM           AUC = 0.5000
+LABEL_SHUFFLE  AUC = 0.5182
+RIGID_NULL     AUC = 0.5000
+RHO_CANARY     AUC = 0.9987
+Bayes          AUC = 0.7854
+```
+
+The pattern strongly localized the predictive signal to compliant motion.
+
+However, the run failed the preregistered Bayes effective-sample-size criterion.
+
+The failure was:
+
+```text
+MATERIAL_YIELD p05 ESS fraction = 0.03265
+required threshold              = 0.05
+```
+
+Therefore the run remains formally recorded as:
+
+```text
+CONFIRMATORY_RUN_INVALID_BAYES_ESS
+```
+
+That result is not retroactively changed.
+
+---
+
+# Bayes failure diagnosis
+
+Increasing particle count did not repair the problem.
+
+```text
+20,000 particles  -> yield p05 ≈ 0.03265
+50,000 particles  -> yield p05 ≈ 0.03233
+100,000 particles -> yield p05 ≈ 0.03297
+```
+
+The problem was therefore not insufficient raw particle count.
+
+A channel-ablation diagnostic localized the problem to:
+
+```text
+tip_dx
+```
+
+Results:
+
+```text
+FULL          -> FAIL
+MOTION_ONLY   -> FAIL
+TIP_DX_ONLY   -> FAIL
+
+FORCE_ONLY    -> PASS
+TIP_DY_ONLY   -> PASS
+```
+
+The same channel that carried most of the useful physical signal was also the channel that caused the strongest importance-weight concentration.
+
+---
+
+# Phase 0.5b — Bayes numerical repair
+
+An exploratory diagnostic identified a targeted defensive-mixture importance proposal.
+
+The proposal was then frozen before new validation data were generated.
+
+Frozen proposal:
+
+```text
+alpha = 0.10
+tau   = 0.0002 m
+```
+
+Interpretation:
+
+```text
+10% uniform proposal
+90% tip_dx-targeted proposal
+targeting width = 1 × motion-noise standard deviation
+```
+
+Importance correction preserves the original scientific prior.
+
+---
+
+## Independent validation
+
+Phase 0.5b used:
+
+- a new dataset seed
+- a new split seed
+- a new Bayes particle seed
+- the same physical model
+- the same observation model
+- the same likelihood
+- the same ESS thresholds
+- the same safety rules
+
+Result:
+
+```text
+PHASE0_5B_VALIDATION_PASS
+```
+
+Bayes AUC:
+
+```text
+Uniform  = 0.809232
+Targeted = 0.809232
+```
+
+Targeted ESS:
+
+```text
+MATERIAL_YIELD
+p05    = 0.66721
+median = 0.91756
+
+SUPPORT_SLIP
+p05    = 0.66467
+median = 0.91359
+```
+
+Required thresholds:
+
+```text
+p05    >= 0.05
+median >= 0.20
+```
+
+Maximum posterior difference between uniform and targeted estimators:
+
+```text
+1.4432899320127035e-15
+```
+
+Interpretation:
+
+> The targeted proposal repaired the numerical ESS problem without materially changing the Bayes estimator.
+
+---
+
+# Operational prevalence
+
+The default unbalanced world distribution strongly favors material yield.
+
+Representative result:
+
+```text
+MATERIAL_YIELD ≈ 98.896%
+SUPPORT_SLIP   ≈ 1.104%
+near-tie       ≈ 0.704%
+```
+
+This is deliberately separate from the balanced identification prior.
+
+Occurrence and identifiability are different questions.
+
+---
+
+# What the project currently supports
+
+Within the current toy simulator:
+
+- compliant pre-slip motion can contain information about the future transition
+- horizontal tool-tip displacement carries most of that useful signal
+- force-only observations remain near chance
+- rigid support removes the useful compliant-motion signal
+- the paired identification design produces substantially above-chance separability
+- the learned classifier and Bayes reference agree closely
+- uniform Monte Carlo sampling can suffer severe lower-tail ESS collapse
+- a targeted importance proposal can repair that numerical problem without changing the scientific posterior
+
+---
+
+# What the project does not claim
+
+This repository does not currently demonstrate:
+
+- real-world robotic performance
+- realistic ice-cream mechanics
+- real-hardware support-slip prediction
+- universal sensing thresholds
+- universal optimality of `tip_dx`
+- demonstrated task-safety improvement
+- superiority over conventional robotics control
+- a universal theory of embodied intelligence
+- a general robotics benchmark
+
+Phase 0.5b validates the numerical repair.
+
+It does not validate the physical model itself.
+
+---
+
+# Reproducibility
+
+Install dependencies:
+
+```bash
+pip install -r requirements.txt
+```
+
+Run regression tests:
+
+```bash
+pytest -q
+```
+
+Run the original Phase 0 pipeline:
+
+```bash
+python run_phase0.py
+```
+
+Run the frozen Phase 0.5 confirmatory experiment:
+
+```bash
+python run_phase0_5_confirmatory.py
+```
+
+Run Bayes repair diagnostics:
+
+```bash
+python phase0_5_bayes_repair.py
+python phase0_5_bayes_ess_ablation.py
+python phase0_5_bayes_targeted_proposal.py
+```
+
+Run the independent Phase 0.5b validation:
+
+```bash
+python run_phase0_5b_validation.py
+```
+
+The GitHub Actions workflow runs the complete research pipeline automatically.
+
+---
+
+# Key documents
+
+```text
+PROJECT_STATUS.md
+PHASE0_FINDINGS.md
+PHASE0_5_PLAN.md
+PHASE0_5_MANIFEST.json
+PHASE0_5B_MANIFEST.json
+PHASE0_5B_FINDINGS.md
+RESULTS.md
+```
+
+---
+
+# Phase 1
+
+Phase 1 is now unlocked.
+
+The next research question is:
+
+> Which legal physical action provides the most useful information about the future transition under a fixed safety budget?
+
+This phase is called:
+
+**Diagnostic Action Value**
+
+The goal is not to build a more complicated classifier.
+
+The goal is to compare ordinary physical actions according to how much useful information they provide relative to their physical risk.
+
+Possible action dimensions include:
+
+- force magnitude
+- force direction
+- lateral nudges
+- unload-and-hold behavior
+- repeated low-risk observations
+
+There is no magical `PROBE` action.
+
+Every diagnostic action must be an ordinary physical intervention.
+
+---
+
+# Phase 1 entry rule
+
+Before running Phase 1 experiments:
+
+1. define the legal action set
+2. define the safety budget
+3. define the information-value metric
+4. define same-world counterfactual action comparison
+5. freeze the evaluation protocol
+6. only then run action comparisons
+
+---
+
+# Working conclusion
+
+The world may expose information before it changes state.
+
+But useful information is not enough by itself.
+
+The estimator must know where to look.
+
+The next question is whether the robot can choose an action that reveals more while risking less.
