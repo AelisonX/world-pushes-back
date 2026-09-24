@@ -47,6 +47,10 @@ jobs:
         run: |
           python rigid_anomaly_audit.py
 
+      - name: Run Phase 0.5 Bayes convergence study
+        run: |
+          python phase0_5_bayes_convergence.py
+
       - name: Show generated files
         if: always()
         run: |
