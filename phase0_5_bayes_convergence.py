@@ -26,6 +26,7 @@ DEFAULT_PARTICLE_COUNTS = [
     2_000,
     5_000,
     10_000,
+    20_000,
 ]
 
 
