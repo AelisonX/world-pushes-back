@@ -20,6 +20,13 @@ class PhysicalParams:
     static_friction: float
     kinetic_friction: float
 
+    # Generic local tool/contact stiffness.
+    #
+    # Phase 0 used a fixed 20,000 N/m value.
+    # Phase 0.5 promotes this to a world parameter so local
+    # deformation can vary independently of support-slip proximity.
+    contact_stiffness: float = 20_000.0
+
     # Maximum tiny support displacement allowed before slip.
     #
     # This is NOT full container sliding.
@@ -338,15 +345,21 @@ def run_safe_probe(
 
     # Generic local contact compliance.
     #
-    # This is intentionally independent of the hidden
-    # material/slip thresholds.
-    contact_stiffness = (
-        20_000.0
-    )
+    # Phase 0.5 treats stiffness as a world-specific nuisance
+    # parameter rather than a globally fixed constant.
+    if params.contact_stiffness <= 0:
+        raise ValueError(
+            "contact_stiffness must be positive"
+        )
 
     local_tip_dx = (
         true_fx
-        / contact_stiffness
+        / params.contact_stiffness
+    )
+
+    local_tip_dy = (
+        -true_fy
+        / params.contact_stiffness
     )
 
     local_tip_dy = (
