@@ -310,6 +310,11 @@ def run_safe_probe(
             "'rigid' or 'compliant'"
         )
 
+    if params.contact_stiffness <= 0:
+        raise ValueError(
+            "contact_stiffness must be positive"
+        )
+
     theta = math.radians(
         action.angle_deg
     )
@@ -347,12 +352,7 @@ def run_safe_probe(
     #
     # Phase 0.5 treats stiffness as a world-specific nuisance
     # parameter rather than a globally fixed constant.
-    if params.contact_stiffness <= 0:
-        raise ValueError(
-            "contact_stiffness must be positive"
-        )
-
-        local_tip_dx = (
+    local_tip_dx = (
         true_fx
         / params.contact_stiffness
     )
@@ -362,7 +362,7 @@ def run_safe_probe(
         / params.contact_stiffness
     )
 
-        support_dx = 0.0
+    support_dx = 0.0
 
     if support_model == "compliant":
         load_fraction = (
