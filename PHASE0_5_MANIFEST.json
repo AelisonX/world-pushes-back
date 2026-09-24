@@ -1,7 +1,14 @@
 {
   "experiment": "Phase 0.5 - Confounded Identifiability",
-  "manifest_version": "1.0",
+  "manifest_version": "1.1",
   "status": "FROZEN_BEFORE_CONFIRMATORY_RUN",
+
+  "amendment": {
+    "amends_manifest_commit": "c282ad850c26ce15157d1ea06775499b8a600282",
+    "timing": "before any confirmatory Phase 0.5 run",
+    "confirmatory_results_inspected_before_amendment": false,
+    "reason": "Add the operational prior and the exact numeric identification-generator distributions required by the frozen Phase 0.5 plan. No scientific outcome, classifier result, confirmatory seed, safety rule, feature definition, metric, or acceptance criterion is changed."
+  },
 
   "research_question": "When tool-tip displacement no longer directly encodes support-slip proximity, how much information about the counterfactual future transition remains in one safe observation?",
 
@@ -12,7 +19,9 @@
 
   "counterfactual_label": {
     "definition": "first analytic transition under monotonically increasing applied force at the fixed nominal angle from the original pre-probe world",
-    "tie_rule": "exclude worlds whose normalized transition margin is below epsilon_tie",
+    "reference_angle_deg": 45.0,
+    "tie_rule": "exclude worlds whose normalized transition margin is below epsilon_tie from confirmatory binary identification analysis",
+    "normalized_margin_definition": "abs(F_material - F_slip) / min(F_material, F_slip)",
     "epsilon_tie": 0.10
   },
 
@@ -25,12 +34,79 @@
     "rho_safe_max": 0.80,
     "normal_force_must_be_positive": true,
     "probe_must_precede_first_transition": true,
-    "clipped_support_regime_allowed": false
+    "clipped_support_regime_allowed": false,
+    "pair_rejected_if_either_twin_fails": true,
+    "generation_max_attempts": 10000
+  },
+
+  "operational_prior": {
+    "purpose": "Estimate how often each counterfactual future transition occurs under the unbalanced default Phase 0.5 world distribution. These frequencies must not be inferred from the paired identification prior.",
+    "generator": "sample_phase0_5_world",
+    "n_worlds": 100000,
+    "seed": 20260926,
+    "balancing": false,
+    "paired": false,
+    "safe_cohort_filter_applied": false,
+    "reference_angle_deg": 45.0,
+    "report": [
+      "MATERIAL_YIELD prevalence",
+      "SUPPORT_SLIP prevalence",
+      "near-tie fraction under epsilon_tie"
+    ]
+  },
+
+  "base_world_distribution": {
+    "material_yield_strength_Pa": {
+      "distribution": "uniform",
+      "min": 80000.0,
+      "max": 180000.0,
+      "note": "This base draw is later replaced by paired identification construction for confirmatory identification worlds, but remains part of the generator and RNG sequence."
+    },
+    "contact_area_m2": {
+      "distribution": "uniform",
+      "min": 0.00005,
+      "max": 0.00015
+    },
+    "container_mass_kg": {
+      "distribution": "uniform",
+      "min": 5.0,
+      "max": 30.0
+    },
+    "static_friction": {
+      "distribution": "uniform",
+      "min": 0.15,
+      "max": 0.60,
+      "note": "This base draw is later replaced by paired identification construction for confirmatory identification worlds, but remains part of the generator and RNG sequence."
+    },
+    "kinetic_friction": {
+      "distribution": "uniform",
+      "min": 0.10,
+      "max": 0.50,
+      "scientific_role": "compatibility field only; not an informative Phase 0.5 pre-transition latent variable"
+    },
+    "contact_stiffness_N_per_m": {
+      "distribution": "log_uniform",
+      "min": 10000.0,
+      "max": 40000.0
+    },
+    "pre_slip_displacement_limit_m": {
+      "distribution": "fixed",
+      "value": 0.002
+    },
+    "support_gain": {
+      "distribution": "log_uniform",
+      "min": 0.5,
+      "max": 2.0
+    }
   },
 
   "identification_prior": {
     "paired_worlds": true,
     "one_world_per_label_per_pair": true,
+    "class_balance_by_construction": true,
+    "a_b_label_order_randomized": true,
+    "pair_generation_max_attempts": 10000,
+
     "shared_nuisance_variables": [
       "container_mass",
       "contact_area",
@@ -41,31 +117,63 @@
       "probe_action",
       "measurement_noise_realization"
     ],
+
     "failure_variables_allowed_to_differ": [
       "static_friction",
       "material_yield_strength"
     ],
-    "a_b_label_order_randomized": true
+
+    "pair_construction": {
+      "friction_center": {
+        "distribution": "uniform",
+        "min": 0.25,
+        "max": 0.50
+      },
+      "friction_delta": {
+        "distribution": "uniform",
+        "min": 0.03,
+        "max": 0.15
+      },
+      "candidate_support_slip_static_friction": "max(0.05, friction_center - friction_delta)",
+      "candidate_material_yield_static_friction": "friction_center + friction_delta",
+
+      "yield_center_Pa": {
+        "distribution": "uniform",
+        "min": 100000.0,
+        "max": 160000.0
+      },
+      "yield_delta_Pa": {
+        "distribution": "uniform",
+        "min": 10000.0,
+        "max": 45000.0
+      },
+      "candidate_support_slip_yield_strength_Pa": "yield_center + yield_delta",
+      "candidate_material_yield_yield_strength_Pa": "max(1.0, yield_center - yield_delta)",
+
+      "acceptance_rule": [
+        "candidate_support_slip analytically predicts SUPPORT_SLIP",
+        "candidate_material_yield analytically predicts MATERIAL_YIELD"
+      ],
+
+      "side_assignment": "random 50/50 swap of the accepted candidate worlds into A and B"
+    }
   },
 
-  "nuisance_distributions": {
-    "contact_stiffness_N_per_m": {
-      "distribution": "log_uniform",
-      "min": 10000.0,
-      "max": 40000.0
-    },
-    "support_gain": {
-      "distribution": "log_uniform",
-      "min": 0.5,
-      "max": 2.0
-    }
+  "observation_model": {
+    "support_model": "compliant",
+    "tip_dx": "Fx / k_contact + g_support * L * rho + motion_noise",
+    "tip_dy": "-Fy / k_contact + motion_noise",
+    "rho": "abs(Fx) / (mu_s * (m * g + Fy))",
+    "official_samples_require_rho_below_clip": true
   },
 
   "noise_model": {
     "force_noise_std_N": 0.20,
     "motion_noise_std_m": 0.0002,
+    "distribution": "Gaussian additive",
     "class_independent": true,
-    "shared_within_pair": true
+    "fixed_across_worlds": true,
+    "shared_realization_within_pair": true
   },
 
   "legal_observation": [
@@ -90,6 +198,7 @@
   "confirmatory_dataset": {
     "n_pairs": 2000,
     "rows_per_pair": 2,
+    "total_rows": 4000,
     "test_fraction": 0.25,
     "split_unit": "pair_id",
     "dataset_seed": 20260925,
@@ -124,15 +233,18 @@
       "definition": "constant no-information feature",
       "expected_behavior": "ROC-AUC approximately 0.5"
     },
+
     "LABEL_SHUFFLE": {
-      "definition": "pair-preserving randomized labels",
+      "definition": "pair-preserving randomized labels applied once across the complete identification dataset before train/test selection",
       "seed": 271828,
       "expected_behavior": "ROC-AUC approximately 0.5"
     },
+
     "RIGID_NULL": {
-      "definition": "same paired worlds, action, noise, and split using the rigid support observation model",
+      "definition": "same paired worlds, action, measurement-noise realization, pair IDs, and train/test assignment using the rigid support observation model",
       "expected_behavior": "no support-specific predictive motion signal"
     },
+
     "RHO_CANARY": {
       "definition": "privileged rho supplied deliberately as the only feature",
       "expected_behavior": "strong recoverability"
@@ -160,7 +272,9 @@
 
   "bayes_reference": {
     "particles": 20000,
+    "particles_per_class": 10000,
     "particle_seed": 424242,
+    "prior": "frozen safe paired identification distribution",
     "observation_access": [
       "Fx",
       "Fy",
@@ -168,21 +282,28 @@
       "tip_dy"
     ],
     "hidden_state_access": false,
-    "likelihood": "exact Gaussian observation likelihood under the frozen simulator noise model"
+    "likelihood": "exact Gaussian observation likelihood under the frozen simulator noise model",
+    "confirmatory_evaluation_set": "the same held-out compliant test records used by the learned classifier"
   },
 
   "bayes_convergence_criterion": {
     "successive_checkpoints_required": 2,
     "max_auc_change": 0.005,
     "max_mean_posterior_change": 0.005,
-    "max_maximum_posterior_change": 0.01
+    "max_maximum_posterior_change": 0.01,
+    "validated_before_freeze": true,
+    "validation_particle_counts": [
+      10000,
+      20000
+    ]
   },
 
   "bayes_ess_criterion": {
     "applies_to_each_class_separately": true,
     "minimum_p05_ess_fraction": 0.05,
     "minimum_median_ess_fraction": 0.20,
-    "minimum_single_observation_ess": "report_only"
+    "minimum_single_observation_ess": "report_only",
+    "validated_before_freeze": true
   },
 
   "interpretation_rules": {
@@ -190,16 +311,37 @@
     "chance_legal_AUC_is_valid_scientific_result": true,
     "learned_classifier_above_Bayes_is_not_automatically_leakage": true,
     "unexpected_gap_requires_investigation": true,
-    "operational_prevalence_must_not_be_inferred_from_identification_prior": true
+    "operational_prevalence_must_not_be_inferred_from_identification_prior": true,
+    "exploratory_results_must_not_be_reported_as_confirmatory_results": true
   },
 
   "invalid_run_conditions": [
     "train_test_pair_leakage",
     "official_sample_reaches_clipped_support_regime",
     "official_sample_violates_safe_cohort",
-    "manifest_changed_after_confirmatory result inspection",
+    "manifest_changed after confirmatory result inspection",
     "privileged_field_used by legal classifier",
     "Bayes convergence criterion fails",
     "Bayes ESS criterion fails"
+  ],
+
+  "required_reproducibility_artifacts": [
+    "manifest SHA256 hash",
+    "code commit SHA",
+    "dataset seed",
+    "split seed",
+    "pair IDs",
+    "world side identifiers",
+    "counterfactual labels",
+    "sampled hidden physical parameters",
+    "rho research metadata",
+    "transition margin research metadata",
+    "measurement-noise realization",
+    "official legal observations",
+    "control results",
+    "bootstrap confidence intervals",
+    "Bayes result",
+    "Bayes ESS summary",
+    "operational-prior prevalence"
   ]
 }
