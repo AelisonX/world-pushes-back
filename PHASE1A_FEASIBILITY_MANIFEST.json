@@ -1,0 +1,210 @@
+{
+  "experiment": "Phase 1A - Action-Grid Cohort Feasibility",
+  "manifest_version": "1.0",
+  "status": "FROZEN_BEFORE_FEASIBILITY_RUN",
+
+  "purpose": "Determine whether the exploratory 3x3 diagnostic-action grid can support an interpretable Phase 1B same-world comparison before any action information-value result is inspected.",
+
+  "forbidden_outputs": [
+    "expected information gain",
+    "mutual information",
+    "per-action ROC-AUC",
+    "per-action classifier accuracy",
+    "per-action log loss",
+    "per-action Brier score",
+    "action winner",
+    "action ranking",
+    "best action"
+  ],
+
+  "target": {
+    "reference_angle_deg": 45.0,
+    "epsilon_tie": 0.10,
+    "definition": "first analytic transition under monotonically increasing force at the fixed 45-degree nominal continuation angle",
+    "diagnostic_action_must_not_redefine_target": true
+  },
+
+  "action_grid": [
+    {
+      "action_id": "A1",
+      "force_N": 3.0,
+      "angle_deg": 30.0
+    },
+    {
+      "action_id": "A2",
+      "force_N": 3.0,
+      "angle_deg": 45.0
+    },
+    {
+      "action_id": "A3",
+      "force_N": 3.0,
+      "angle_deg": 60.0
+    },
+    {
+      "action_id": "A4",
+      "force_N": 5.0,
+      "angle_deg": 30.0
+    },
+    {
+      "action_id": "A5",
+      "force_N": 5.0,
+      "angle_deg": 45.0
+    },
+    {
+      "action_id": "A6",
+      "force_N": 5.0,
+      "angle_deg": 60.0
+    },
+    {
+      "action_id": "A7",
+      "force_N": 7.0,
+      "angle_deg": 30.0
+    },
+    {
+      "action_id": "A8",
+      "force_N": 7.0,
+      "angle_deg": 45.0
+    },
+    {
+      "action_id": "A9",
+      "force_N": 7.0,
+      "angle_deg": 60.0
+    }
+  ],
+
+  "paired_identification_population": {
+    "n_target_valid_pairs": 5000,
+    "dataset_seed": 20261020,
+    "pair_generation_max_attempts": 10000,
+    "complete_pair_is_unit_of_filtering": true,
+    "one_world_per_label_per_pair": true,
+    "expected_class_balance": 0.50
+  },
+
+  "safety": {
+    "rho_safe_max": 0.80,
+    "normal_force_must_be_positive": true,
+    "probe_must_precede_first_transition": true,
+    "clipped_support_regime_allowed": false,
+    "legality_computed_from_true_quantities_only": true
+  },
+
+  "rejection_reasons": {
+    "all_reasons_recorded": true,
+    "primary_precedence": [
+      "TRANSITION_BEFORE_OR_AT_PROBE",
+      "SUPPORT_RHO_LIMIT",
+      "NONPOSITIVE_NORMAL_FORCE",
+      "CLIPPED_SUPPORT_REGIME"
+    ]
+  },
+
+  "required_cohort_diagnostics": [
+    "legal pair fraction per action",
+    "legal world fraction per action",
+    "rejection counts per action",
+    "rejection overlap per action",
+    "rho distribution per action",
+    "transition-force margin distribution per action",
+    "universal legal pair fraction",
+    "pairs rejected by number of actions",
+    "leave-one-out universal cohort gain",
+    "legality nesting relationships",
+    "hidden-parameter shift",
+    "45-degree target-margin shift",
+    "paired class-balance invariant"
+  ],
+
+  "hidden_parameter_shift": {
+    "parameters": [
+      "static_friction",
+      "material_yield_strength",
+      "container_mass",
+      "contact_area",
+      "contact_stiffness",
+      "support_gain",
+      "kinetic_friction"
+    ],
+    "report": [
+      "original_mean",
+      "universal_mean",
+      "original_median",
+      "universal_median",
+      "standardized_mean_difference"
+    ]
+  },
+
+  "bayes_numerical_gate": {
+    "enabled": true,
+    "purpose": "Check whether the validated targeted importance-sampling strategy remains numerically adequate under each candidate Phase 1 action without computing action-value metrics.",
+
+    "proposal": {
+      "uniform_prior_mixture_weight_alpha": 0.10,
+      "tau_m": 0.0002,
+      "target_distribution": "per-action empirical class-conditional particle bank",
+      "sampling": "categorical_with_replacement"
+    },
+
+    "particle_bank": {
+      "particles_per_action": 20000,
+      "particles_per_class": 10000,
+      "particle_seed_base": 20261030,
+      "seed_rule": "particle_seed_base + action_index"
+    },
+
+    "evaluation": {
+      "rows_per_action": 100,
+      "evaluation_seed_base": 20261050,
+      "sampler_replicates": 5,
+      "sampler_sample_size_per_class": 20000,
+      "sampler_seed_base": 20261100,
+      "seed_rule": "sampler_seed_base + action_index * 100000 + observation_index * 100 + replicate_index"
+    },
+
+    "noise_model": {
+      "force_noise_std_N": 0.20,
+      "motion_noise_std_m": 0.0002
+    },
+
+    "required_outputs_only": [
+      "SUPPORT_SLIP realized ESS p05",
+      "SUPPORT_SLIP realized ESS median",
+      "MATERIAL_YIELD realized ESS p05",
+      "MATERIAL_YIELD realized ESS median"
+    ],
+
+    "minimum_p05_ess_fraction": 0.05,
+    "minimum_median_ess_fraction": 0.20,
+
+    "auc_forbidden": true,
+    "posterior_action_ranking_forbidden": true
+  },
+
+  "redesign_triggers": {
+    "universal_legal_pair_fraction_below": 0.50,
+    "single_action_leave_one_out_gain_at_or_above": 0.20,
+    "transition_before_probe_pair_fraction_at_or_above": 0.20,
+    "absolute_standardized_mean_difference_at_or_above": 0.50,
+    "target_margin_median_relative_shift_at_or_above": 0.50,
+    "bayes_ess_failure_requires_redesign_or_numerical_repair": true
+  },
+
+  "matched_fx_pairs_to_preserve_for_diagnostics": [
+    [
+      "A1",
+      "A6"
+    ],
+    [
+      "A5",
+      "A9"
+    ]
+  ],
+
+  "interpretation_rules": {
+    "phase1a_may_fail_without_project_failure": true,
+    "grid_redesign_must_occur_before_action_value_results": true,
+    "universal_cohort_is_not_the_robot_operational_prior": true,
+    "unsafe_worlds_must_not_be_silently_treated_as_missing_in_future_policy_analysis": true,
+    "phase1b_not_unlocked_automatically_by_ci_success": true
+  }
+}
