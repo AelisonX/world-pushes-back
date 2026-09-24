@@ -23,7 +23,8 @@ def make_params(
         contact_area=contact_area,
         container_mass=container_mass,
         static_friction=static_friction,
-        kinetic_friction=0.25,contact_stiffness=(
+        kinetic_friction=0.25,
+        contact_stiffness=(
             contact_stiffness
         ),
     )
@@ -173,9 +174,9 @@ def test_rigid_support_uses_world_contact_stiffness():
         )
         < 1e-12
     )
-    
-    
-    def test_lower_contact_stiffness_increases_local_tip_motion():
+
+
+def test_lower_contact_stiffness_increases_local_tip_motion():
     soft = make_params(
         contact_stiffness=10_000.0,
     )
