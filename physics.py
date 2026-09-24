@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from enum import Enum
 import math
+import random
 
 
 GRAVITY = 9.81
@@ -28,15 +29,31 @@ class Action:
 
 
 @dataclass
+class Observation:
+    fx: float
+    fy: float
+    tip_dx: float
+    tip_dy: float
+
+
+@dataclass
 class StepResult:
     mode: ContactMode
-    normal_force: float
-    horizontal_force: float
+    observation: Observation
     material_yield_threshold: float
     support_slip_threshold: float
 
 
-def resolve_step(params: PhysicalParams, action: Action) -> StepResult:
+def add_noise(value: float, std: float) -> float:
+    return value + random.gauss(0.0, std)
+
+
+def resolve_step(
+    params: PhysicalParams,
+    action: Action,
+    force_noise_std: float = 0.25,
+    motion_noise_std: float = 0.0005,
+) -> StepResult:
     """
     Resolve one simplified quasi-static contact step.
 
@@ -44,34 +61,29 @@ def resolve_step(params: PhysicalParams, action: Action) -> StepResult:
         0 degrees = horizontal push
         90 degrees = straight downward push
 
-    The model compares two thresholds:
-
-    1. Material yield:
-       normal force must exceed material_yield_strength * contact_area
-
-    2. Support slip:
-       horizontal force must exceed available static friction
+    The simulator internally knows the true thresholds.
+    The agent only receives tool-side observations.
     """
 
     theta = math.radians(action.angle_deg)
 
-    horizontal_force = action.force * math.cos(theta)
-    downward_force = action.force * math.sin(theta)
+    fx = action.force * math.cos(theta)
+    fy = action.force * math.sin(theta)
 
     material_yield_threshold = (
         params.material_yield_strength * params.contact_area
     )
 
     support_normal_force = (
-        params.container_mass * GRAVITY + downward_force
+        params.container_mass * GRAVITY + fy
     )
 
     support_slip_threshold = (
         params.static_friction * support_normal_force
     )
 
-    material_yields = downward_force >= material_yield_threshold
-    support_slips = abs(horizontal_force) >= support_slip_threshold
+    material_yields = fy >= material_yield_threshold
+    support_slips = abs(fx) >= support_slip_threshold
 
     if support_slips and not material_yields:
         mode = ContactMode.SUPPORT_SLIP
@@ -80,16 +92,14 @@ def resolve_step(params: PhysicalParams, action: Action) -> StepResult:
         mode = ContactMode.MATERIAL_YIELD
 
     elif material_yields and support_slips:
-        # Both thresholds are crossed in this simplified single-step model.
-        # For now, choose the transition with the smaller normalized margin.
         yield_ratio = (
-            downward_force / material_yield_threshold
+            fy / material_yield_threshold
             if material_yield_threshold > 0
             else float("inf")
         )
 
         slip_ratio = (
-            abs(horizontal_force) / support_slip_threshold
+            abs(fx) / support_slip_threshold
             if support_slip_threshold > 0
             else float("inf")
         )
@@ -102,16 +112,45 @@ def resolve_step(params: PhysicalParams, action: Action) -> StepResult:
     else:
         mode = ContactMode.CONTACT_BLOCKED
 
+    # Simplified tool-tip motion model.
+    #
+    # These are deliberately crude placeholders.
+    # The important distinction is that the agent receives
+    # noisy tool-side motion rather than hidden thresholds.
+
+    if mode == ContactMode.CONTACT_BLOCKED:
+        tip_dx = 0.0005
+        tip_dy = 0.0005
+
+    elif mode == ContactMode.MATERIAL_YIELD:
+        tip_dx = 0.001
+        tip_dy = -0.010
+
+    elif mode == ContactMode.SUPPORT_SLIP:
+        tip_dx = 0.010
+        tip_dy = -0.001
+
+    else:
+        raise ValueError(f"Unknown mode: {mode}")
+
+    observation = Observation(
+        fx=add_noise(fx, force_noise_std),
+        fy=add_noise(fy, force_noise_std),
+        tip_dx=add_noise(tip_dx, motion_noise_std),
+        tip_dy=add_noise(tip_dy, motion_noise_std),
+    )
+
     return StepResult(
         mode=mode,
-        normal_force=downward_force,
-        horizontal_force=horizontal_force,
+        observation=observation,
         material_yield_threshold=material_yield_threshold,
         support_slip_threshold=support_slip_threshold,
     )
 
 
 if __name__ == "__main__":
+    random.seed(42)
+
     params = PhysicalParams(
         material_yield_strength=120_000,
         contact_area=0.0001,
@@ -127,9 +166,15 @@ if __name__ == "__main__":
 
     result = resolve_step(params, action)
 
-    print("Mode:", result.mode.value)
-    print("Normal force:", round(result.normal_force, 2), "N")
-    print("Horizontal force:", round(result.horizontal_force, 2), "N")
+    print("True mode:", result.mode.value)
+    print()
+    print("Agent observation:")
+    print("Fx:", round(result.observation.fx, 3), "N")
+    print("Fy:", round(result.observation.fy, 3), "N")
+    print("tip_dx:", round(result.observation.tip_dx, 5), "m")
+    print("tip_dy:", round(result.observation.tip_dy, 5), "m")
+    print()
+    print("Researcher-only hidden values:")
     print(
         "Material yield threshold:",
         round(result.material_yield_threshold, 2),
