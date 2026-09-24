@@ -1,0 +1,205 @@
+{
+  "experiment": "Phase 0.5 - Confounded Identifiability",
+  "manifest_version": "1.0",
+  "status": "FROZEN_BEFORE_CONFIRMATORY_RUN",
+
+  "research_question": "When tool-tip displacement no longer directly encodes support-slip proximity, how much information about the counterfactual future transition remains in one safe observation?",
+
+  "labels": [
+    "MATERIAL_YIELD",
+    "SUPPORT_SLIP"
+  ],
+
+  "counterfactual_label": {
+    "definition": "first analytic transition under monotonically increasing applied force at the fixed nominal angle from the original pre-probe world",
+    "tie_rule": "exclude worlds whose normalized transition margin is below epsilon_tie",
+    "epsilon_tie": 0.10
+  },
+
+  "probe": {
+    "force_N": 5.0,
+    "angle_deg": 45.0
+  },
+
+  "safe_cohort": {
+    "rho_safe_max": 0.80,
+    "normal_force_must_be_positive": true,
+    "probe_must_precede_first_transition": true,
+    "clipped_support_regime_allowed": false
+  },
+
+  "identification_prior": {
+    "paired_worlds": true,
+    "one_world_per_label_per_pair": true,
+    "shared_nuisance_variables": [
+      "container_mass",
+      "contact_area",
+      "kinetic_friction_compatibility_field",
+      "contact_stiffness",
+      "pre_slip_displacement_limit",
+      "support_gain",
+      "probe_action",
+      "measurement_noise_realization"
+    ],
+    "failure_variables_allowed_to_differ": [
+      "static_friction",
+      "material_yield_strength"
+    ],
+    "a_b_label_order_randomized": true
+  },
+
+  "nuisance_distributions": {
+    "contact_stiffness_N_per_m": {
+      "distribution": "log_uniform",
+      "min": 10000.0,
+      "max": 40000.0
+    },
+    "support_gain": {
+      "distribution": "log_uniform",
+      "min": 0.5,
+      "max": 2.0
+    }
+  },
+
+  "noise_model": {
+    "force_noise_std_N": 0.20,
+    "motion_noise_std_m": 0.0002,
+    "class_independent": true,
+    "shared_within_pair": true
+  },
+
+  "legal_observation": [
+    "Fx",
+    "Fy",
+    "tip_dx",
+    "tip_dy"
+  ],
+
+  "privileged_fields_not_allowed_as_legal_features": [
+    "container_mass",
+    "static_friction",
+    "material_yield_strength",
+    "contact_stiffness",
+    "support_gain",
+    "rho",
+    "transition_margin",
+    "transition_thresholds",
+    "future_label"
+  ],
+
+  "confirmatory_dataset": {
+    "n_pairs": 2000,
+    "rows_per_pair": 2,
+    "test_fraction": 0.25,
+    "split_unit": "pair_id",
+    "dataset_seed": 20260925,
+    "split_seed": 314159
+  },
+
+  "classifier": {
+    "model": "LogisticRegression",
+    "max_iter": 2000,
+    "preprocessing": "StandardScaler fit on training data only"
+  },
+
+  "feature_conditions": {
+    "FULL": [
+      "Fx",
+      "Fy",
+      "tip_dx",
+      "tip_dy"
+    ],
+    "FORCE_ONLY": [
+      "Fx",
+      "Fy"
+    ],
+    "MOTION_ONLY": [
+      "tip_dx",
+      "tip_dy"
+    ]
+  },
+
+  "controls": {
+    "SHAM": {
+      "definition": "constant no-information feature",
+      "expected_behavior": "ROC-AUC approximately 0.5"
+    },
+    "LABEL_SHUFFLE": {
+      "definition": "pair-preserving randomized labels",
+      "seed": 271828,
+      "expected_behavior": "ROC-AUC approximately 0.5"
+    },
+    "RIGID_NULL": {
+      "definition": "same paired worlds, action, noise, and split using the rigid support observation model",
+      "expected_behavior": "no support-specific predictive motion signal"
+    },
+    "RHO_CANARY": {
+      "definition": "privileged rho supplied deliberately as the only feature",
+      "expected_behavior": "strong recoverability"
+    }
+  },
+
+  "mandatory_metrics": [
+    "sample_count",
+    "ROC_AUC",
+    "pair_cluster_bootstrap_95_percent_CI",
+    "FNR_at_FPR_0.10",
+    "Bayes_reference_AUC",
+    "LABEL_SHUFFLE",
+    "SHAM",
+    "RHO_CANARY",
+    "RIGID_NULL"
+  ],
+
+  "bootstrap": {
+    "unit": "pair_id",
+    "replicates": 2000,
+    "seed": 161803,
+    "interval": "percentile_95"
+  },
+
+  "bayes_reference": {
+    "particles": 20000,
+    "particle_seed": 424242,
+    "observation_access": [
+      "Fx",
+      "Fy",
+      "tip_dx",
+      "tip_dy"
+    ],
+    "hidden_state_access": false,
+    "likelihood": "exact Gaussian observation likelihood under the frozen simulator noise model"
+  },
+
+  "bayes_convergence_criterion": {
+    "successive_checkpoints_required": 2,
+    "max_auc_change": 0.005,
+    "max_mean_posterior_change": 0.005,
+    "max_maximum_posterior_change": 0.01
+  },
+
+  "bayes_ess_criterion": {
+    "applies_to_each_class_separately": true,
+    "minimum_p05_ess_fraction": 0.05,
+    "minimum_median_ess_fraction": 0.20,
+    "minimum_single_observation_ess": "report_only"
+  },
+
+  "interpretation_rules": {
+    "high_AUC_required_for_success": false,
+    "chance_legal_AUC_is_valid_scientific_result": true,
+    "learned_classifier_above_Bayes_is_not_automatically_leakage": true,
+    "unexpected_gap_requires_investigation": true,
+    "operational_prevalence_must_not_be_inferred_from_identification_prior": true
+  },
+
+  "invalid_run_conditions": [
+    "train_test_pair_leakage",
+    "official_sample_reaches_clipped_support_regime",
+    "official_sample_violates_safe_cohort",
+    "manifest_changed_after_confirmatory result inspection",
+    "privileged_field_used by legal classifier",
+    "Bayes convergence criterion fails",
+    "Bayes ESS criterion fails"
+  ]
+}
