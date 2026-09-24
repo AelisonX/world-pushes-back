@@ -20,6 +20,13 @@ class PhysicalParams:
     static_friction: float
     kinetic_friction: float
 
+    # Maximum tiny support displacement allowed before slip.
+    #
+    # This is NOT full container sliding.
+    # It represents small pre-slip compliance from things such as
+    # rubber feet, mounts, wheels, or deformable support contact.
+    pre_slip_displacement_limit: float = 0.002
+
 
 @dataclass
 class Action:
@@ -80,7 +87,8 @@ def slip_transition_force(
 
     Slip begins when:
 
-    F*cos(theta) >
+    F*cos(theta)
+    >
     mu_s * (m*g + F*sin(theta))
     """
 
@@ -128,25 +136,85 @@ def predict_next_transition(
     )
 
 
+def compute_pre_slip_support_motion(
+    true_fx: float,
+    slip_force: float,
+    pre_slip_displacement_limit: float,
+) -> float:
+    """
+    Simple pre-slip support-compliance model.
+
+    The closer horizontal loading gets to the support-slip
+    threshold, the larger the tiny support displacement becomes.
+
+    This is an explicit modeling assumption for the compliant
+    ablation. It is not part of ideal Coulomb friction.
+    """
+
+    if slip_force <= 0 or math.isinf(slip_force):
+        return 0.0
+
+    load_fraction = min(
+        abs(true_fx) / slip_force,
+        1.0,
+    )
+
+    displacement = (
+        pre_slip_displacement_limit
+        * load_fraction
+    )
+
+    return math.copysign(
+        displacement,
+        true_fx,
+    )
+
+
 def run_safe_probe(
     params: PhysicalParams,
     action: Action,
     force_noise_std: float = 0.20,
     motion_noise_std: float = 0.0002,
+    support_model: str = "rigid",
 ) -> ProbeResult:
     """
-    Apply a low-force probe before either transition occurs.
+    Apply a probe before either transition occurs.
 
-    The agent observes only noisy tool-side signals.
+    support_model:
+        "rigid"
+            Idealized Coulomb support. No pre-slip motion.
+
+        "compliant"
+            Support produces a tiny pre-slip displacement
+            that grows as loading approaches the slip threshold.
+
+    The agent receives only noisy tool-side observations.
 
     Hidden transition thresholds are returned for researcher
     evaluation only.
     """
 
-    theta = math.radians(action.angle_deg)
+    if support_model not in {
+        "rigid",
+        "compliant",
+    }:
+        raise ValueError(
+            "support_model must be 'rigid' or 'compliant'"
+        )
 
-    true_fx = action.force * math.cos(theta)
-    true_fy = action.force * math.sin(theta)
+    theta = math.radians(
+        action.angle_deg
+    )
+
+    true_fx = (
+        action.force
+        * math.cos(theta)
+    )
+
+    true_fy = (
+        action.force
+        * math.sin(theta)
+    )
 
     (
         next_transition,
@@ -163,18 +231,45 @@ def run_safe_probe(
     )
 
     still_blocked = (
-        action.force < first_transition_force
+        action.force
+        < first_transition_force
     )
 
-    # Before either transition, the minimal model deliberately
-    # provides almost no hidden-parameter information.
+    # Generic local contact compliance.
     #
-    # Small motion represents generic contact compliance,
-    # not knowledge of the future transition.
+    # This is intentionally independent of the hidden
+    # material/slip thresholds.
     contact_stiffness = 20_000.0
 
-    tip_dx = true_fx / contact_stiffness
-    tip_dy = -true_fy / contact_stiffness
+    local_tip_dx = (
+        true_fx / contact_stiffness
+    )
+
+    local_tip_dy = (
+        -true_fy / contact_stiffness
+    )
+
+    support_dx = 0.0
+
+    if support_model == "compliant":
+        support_dx = compute_pre_slip_support_motion(
+            true_fx=true_fx,
+            slip_force=slip_force,
+            pre_slip_displacement_limit=(
+                params.pre_slip_displacement_limit
+            ),
+        )
+
+    # World-frame tool-tip displacement contains both:
+    #
+    # 1. local contact compliance
+    # 2. any tiny support motion transmitted through contact
+    tip_dx = (
+        local_tip_dx
+        + support_dx
+    )
+
+    tip_dy = local_tip_dy
 
     observation = Observation(
         fx=add_noise(
@@ -220,41 +315,64 @@ if __name__ == "__main__":
         angle_deg=45.0,
     )
 
-    result = run_safe_probe(
-        params,
-        probe,
-    )
+    for support_model in [
+        "rigid",
+        "compliant",
+    ]:
+        result = run_safe_probe(
+            params,
+            probe,
+            support_model=support_model,
+        )
 
-    print("Safe probe still blocked:", result.still_blocked)
+        print(
+            f"=== {support_model.upper()} SUPPORT ==="
+        )
 
-    print()
-    print("Agent observation:")
-    print("Fx:", round(result.observation.fx, 3), "N")
-    print("Fy:", round(result.observation.fy, 3), "N")
-    print(
-        "tip_dx:",
-        round(result.observation.tip_dx, 6),
-        "m",
-    )
-    print(
-        "tip_dy:",
-        round(result.observation.tip_dy, 6),
-        "m",
-    )
+        print(
+            "Still blocked:",
+            result.still_blocked,
+        )
 
-    print()
-    print("Researcher-only future truth:")
-    print(
-        "Next transition:",
-        result.next_transition.value,
-    )
-    print(
-        "Material transition force:",
-        round(result.material_transition_force, 2),
-        "N",
-    )
-    print(
-        "Slip transition force:",
-        round(result.slip_transition_force, 2),
-        "N",
-    )
+        print(
+            "Next transition:",
+            result.next_transition.value,
+        )
+
+        print(
+            "Fx:",
+            round(
+                result.observation.fx,
+                3,
+            ),
+            "N",
+        )
+
+        print(
+            "Fy:",
+            round(
+                result.observation.fy,
+                3,
+            ),
+            "N",
+        )
+
+        print(
+            "tip_dx:",
+            round(
+                result.observation.tip_dx,
+                6,
+            ),
+            "m",
+        )
+
+        print(
+            "tip_dy:",
+            round(
+                result.observation.tip_dy,
+                6,
+            ),
+            "m",
+        )
+
+        print()
