@@ -5,17 +5,23 @@ import numpy as np
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import StratifiedKFold
 from sklearn.model_selection import cross_val_score
+from sklearn.pipeline import make_pipeline
+from sklearn.preprocessing import StandardScaler
 
 from physics import (
     Action,
+    NextTransition,
     PhysicalParams,
     run_safe_probe,
 )
 
 
-NUM_SAMPLES = 5000
+TARGET_SAMPLES_PER_CLASS = 250
+
+MAX_ATTEMPTS = 100_000
 
 PROBE_FORCE = 11.0
+
 
 PRE_SLIP_LIMITS = [
     0.0001,
@@ -25,6 +31,7 @@ PRE_SLIP_LIMITS = [
     0.002,
     0.004,
 ]
+
 
 MOTION_NOISE_LEVELS = [
     0.00005,
@@ -74,9 +81,22 @@ def collect_samples(
         angle_deg=45.0,
     )
 
-    samples = []
+    grouped = {
+        NextTransition.MATERIAL_YIELD.value: [],
+        NextTransition.SUPPORT_SLIP.value: [],
+    }
 
-    for _ in range(NUM_SAMPLES):
+    attempts = 0
+
+    while attempts < MAX_ATTEMPTS:
+        attempts += 1
+
+        if all(
+            len(group) >= TARGET_SAMPLES_PER_CLASS
+            for group in grouped.values()
+        ):
+            break
+
         params = sample_params(
             pre_slip_displacement_limit
         )
@@ -91,73 +111,87 @@ def collect_samples(
         if not result.still_blocked:
             continue
 
-        samples.append(
+        label = result.next_transition.value
+
+        if (
+            len(grouped[label])
+            >= TARGET_SAMPLES_PER_CLASS
+        ):
+            continue
+
+        grouped[label].append(
             {
-                "label": result.next_transition.value,
+                "label": label,
                 "tip_dx": result.observation.tip_dx,
             }
         )
 
-    return samples
-
-
-def balance_samples(samples):
-    grouped = {}
-
-    for sample in samples:
-        grouped.setdefault(
-            sample["label"],
-            [],
-        ).append(sample)
-
-    if len(grouped) < 2:
-        return []
-
-    target_size = min(
-        len(group)
-        for group in grouped.values()
+    samples = (
+        grouped[
+            NextTransition.MATERIAL_YIELD.value
+        ]
+        +
+        grouped[
+            NextTransition.SUPPORT_SLIP.value
+        ]
     )
 
-    if target_size < 50:
-        return []
+    counts = {
+        label: len(group)
+        for label, group in grouped.items()
+    }
 
-    balanced = []
-
-    for group in grouped.values():
-        balanced.extend(
-            random.sample(
-                group,
-                target_size,
-            )
-        )
-
-    random.shuffle(
-        balanced
+    return (
+        samples,
+        counts,
+        attempts,
     )
-
-    return balanced
 
 
 def evaluate_accuracy(samples):
-    balanced = balance_samples(
-        samples
+    labels = {
+        sample["label"]
+        for sample in samples
+    }
+
+    if len(labels) < 2:
+        return None
+
+    class_counts = {}
+
+    for sample in samples:
+        label = sample["label"]
+
+        class_counts[label] = (
+            class_counts.get(
+                label,
+                0,
+            )
+            + 1
+        )
+
+    smallest_class = min(
+        class_counts.values()
     )
 
-    if not balanced:
+    if smallest_class < 5:
         return None
 
     x = [
         [item["tip_dx"]]
-        for item in balanced
+        for item in samples
     ]
 
     y = [
         item["label"]
-        for item in balanced
+        for item in samples
     ]
 
-    model = LogisticRegression(
-        max_iter=2000,
+    model = make_pipeline(
+        StandardScaler(),
+        LogisticRegression(
+            max_iter=2000,
+        ),
     )
 
     cv = StratifiedKFold(
@@ -175,8 +209,12 @@ def evaluate_accuracy(samples):
     )
 
     return (
-        float(np.mean(scores)),
-        float(np.std(scores)),
+        float(
+            np.mean(scores)
+        ),
+        float(
+            np.std(scores)
+        ),
     )
 
 
@@ -189,21 +227,31 @@ def run_sweep():
         f"Probe force: {PROBE_FORCE:.1f} N"
     )
 
+    print(
+        f"Target samples per class: "
+        f"{TARGET_SAMPLES_PER_CLASS}"
+    )
+
     print()
 
     print(
-        "pre_slip_mm | noise_mm | accuracy | std"
+        "pre_slip_mm | noise_mm | accuracy | std | "
+        "yield_n | slip_n | attempts"
     )
 
     print(
-        "------------------------------------------"
+        "---------------------------------------------------------------"
     )
 
     for pre_slip_limit in PRE_SLIP_LIMITS:
         for noise_level in MOTION_NOISE_LEVELS:
             random.seed(42)
 
-            samples = collect_samples(
+            (
+                samples,
+                counts,
+                attempts,
+            ) = collect_samples(
                 pre_slip_displacement_limit=(
                     pre_slip_limit
                 ),
@@ -218,7 +266,10 @@ def run_sweep():
                 accuracy_text = "N/A"
                 std_text = "N/A"
             else:
-                mean_accuracy, std_accuracy = result
+                (
+                    mean_accuracy,
+                    std_accuracy,
+                ) = result
 
                 accuracy_text = (
                     f"{mean_accuracy:.3f}"
@@ -228,11 +279,22 @@ def run_sweep():
                     f"{std_accuracy:.3f}"
                 )
 
+            yield_count = counts[
+                NextTransition.MATERIAL_YIELD.value
+            ]
+
+            slip_count = counts[
+                NextTransition.SUPPORT_SLIP.value
+            ]
+
             print(
                 f"{pre_slip_limit * 1000:11.3f} | "
                 f"{noise_level * 1000:8.3f} | "
                 f"{accuracy_text:8} | "
-                f"{std_text}"
+                f"{std_text:5} | "
+                f"{yield_count:7d} | "
+                f"{slip_count:6d} | "
+                f"{attempts:8d}"
             )
 
 
