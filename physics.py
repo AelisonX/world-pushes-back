@@ -7,8 +7,7 @@ import random
 GRAVITY = 9.81
 
 
-class ContactMode(str, Enum):
-    CONTACT_BLOCKED = "CONTACT_BLOCKED"
+class NextTransition(str, Enum):
     MATERIAL_YIELD = "MATERIAL_YIELD"
     SUPPORT_SLIP = "SUPPORT_SLIP"
 
@@ -37,114 +36,171 @@ class Observation:
 
 
 @dataclass
-class StepResult:
-    mode: ContactMode
+class ProbeResult:
     observation: Observation
-    material_yield_threshold: float
-    support_slip_threshold: float
+    still_blocked: bool
+    material_transition_force: float
+    slip_transition_force: float
+    next_transition: NextTransition
 
 
 def add_noise(value: float, std: float) -> float:
     return value + random.gauss(0.0, std)
 
 
-def resolve_step(
+def material_transition_force(
+    params: PhysicalParams,
+    angle_deg: float,
+) -> float:
+    """
+    Total applied force required to reach material yield
+    at a fixed force angle.
+    """
+
+    theta = math.radians(angle_deg)
+    vertical_fraction = math.sin(theta)
+
+    if vertical_fraction <= 0:
+        return float("inf")
+
+    yield_force = (
+        params.material_yield_strength
+        * params.contact_area
+    )
+
+    return yield_force / vertical_fraction
+
+
+def slip_transition_force(
+    params: PhysicalParams,
+    angle_deg: float,
+) -> float:
+    """
+    Total applied force required to reach support slip.
+
+    Slip begins when:
+
+    F*cos(theta) >
+    mu_s * (m*g + F*sin(theta))
+    """
+
+    theta = math.radians(angle_deg)
+
+    denominator = (
+        math.cos(theta)
+        - params.static_friction * math.sin(theta)
+    )
+
+    if denominator <= 0:
+        return float("inf")
+
+    return (
+        params.static_friction
+        * params.container_mass
+        * GRAVITY
+        / denominator
+    )
+
+
+def predict_next_transition(
+    params: PhysicalParams,
+    angle_deg: float,
+) -> tuple[NextTransition, float, float]:
+    material_force = material_transition_force(
+        params,
+        angle_deg,
+    )
+
+    slip_force = slip_transition_force(
+        params,
+        angle_deg,
+    )
+
+    if material_force <= slip_force:
+        next_transition = NextTransition.MATERIAL_YIELD
+    else:
+        next_transition = NextTransition.SUPPORT_SLIP
+
+    return (
+        next_transition,
+        material_force,
+        slip_force,
+    )
+
+
+def run_safe_probe(
     params: PhysicalParams,
     action: Action,
-    force_noise_std: float = 0.25,
-    motion_noise_std: float = 0.0005,
-) -> StepResult:
+    force_noise_std: float = 0.20,
+    motion_noise_std: float = 0.0002,
+) -> ProbeResult:
     """
-    Resolve one simplified quasi-static contact step.
+    Apply a low-force probe before either transition occurs.
 
-    angle_deg:
-        0 degrees = horizontal push
-        90 degrees = straight downward push
+    The agent observes only noisy tool-side signals.
 
-    The simulator internally knows the true thresholds.
-    The agent only receives tool-side observations.
+    Hidden transition thresholds are returned for researcher
+    evaluation only.
     """
 
     theta = math.radians(action.angle_deg)
 
-    fx = action.force * math.cos(theta)
-    fy = action.force * math.sin(theta)
+    true_fx = action.force * math.cos(theta)
+    true_fy = action.force * math.sin(theta)
 
-    material_yield_threshold = (
-        params.material_yield_strength * params.contact_area
+    (
+        next_transition,
+        material_force,
+        slip_force,
+    ) = predict_next_transition(
+        params,
+        action.angle_deg,
     )
 
-    support_normal_force = (
-        params.container_mass * GRAVITY + fy
+    first_transition_force = min(
+        material_force,
+        slip_force,
     )
 
-    support_slip_threshold = (
-        params.static_friction * support_normal_force
+    still_blocked = (
+        action.force < first_transition_force
     )
 
-    material_yields = fy >= material_yield_threshold
-    support_slips = abs(fx) >= support_slip_threshold
-
-    if support_slips and not material_yields:
-        mode = ContactMode.SUPPORT_SLIP
-
-    elif material_yields and not support_slips:
-        mode = ContactMode.MATERIAL_YIELD
-
-    elif material_yields and support_slips:
-        yield_ratio = (
-            fy / material_yield_threshold
-            if material_yield_threshold > 0
-            else float("inf")
-        )
-
-        slip_ratio = (
-            abs(fx) / support_slip_threshold
-            if support_slip_threshold > 0
-            else float("inf")
-        )
-
-        if yield_ratio >= slip_ratio:
-            mode = ContactMode.MATERIAL_YIELD
-        else:
-            mode = ContactMode.SUPPORT_SLIP
-
-    else:
-        mode = ContactMode.CONTACT_BLOCKED
-
-    # Simplified tool-tip motion model.
+    # Before either transition, the minimal model deliberately
+    # provides almost no hidden-parameter information.
     #
-    # These are deliberately crude placeholders.
-    # The important distinction is that the agent receives
-    # noisy tool-side motion rather than hidden thresholds.
+    # Small motion represents generic contact compliance,
+    # not knowledge of the future transition.
+    contact_stiffness = 20_000.0
 
-    if mode == ContactMode.CONTACT_BLOCKED:
-        tip_dx = 0.0005
-        tip_dy = 0.0005
-
-    elif mode == ContactMode.MATERIAL_YIELD:
-        tip_dx = 0.001
-        tip_dy = -0.010
-
-    elif mode == ContactMode.SUPPORT_SLIP:
-        tip_dx = 0.010
-        tip_dy = -0.001
-
-    else:
-        raise ValueError(f"Unknown mode: {mode}")
+    tip_dx = true_fx / contact_stiffness
+    tip_dy = -true_fy / contact_stiffness
 
     observation = Observation(
-        fx=add_noise(fx, force_noise_std),
-        fy=add_noise(fy, force_noise_std),
-        tip_dx=add_noise(tip_dx, motion_noise_std),
-        tip_dy=add_noise(tip_dy, motion_noise_std),
+        fx=add_noise(
+            true_fx,
+            force_noise_std,
+        ),
+        fy=add_noise(
+            true_fy,
+            force_noise_std,
+        ),
+        tip_dx=add_noise(
+            tip_dx,
+            motion_noise_std,
+        ),
+        tip_dy=add_noise(
+            tip_dy,
+            motion_noise_std,
+        ),
     )
 
-    return StepResult(
-        mode=mode,
+    return ProbeResult(
         observation=observation,
-        material_yield_threshold=material_yield_threshold,
-        support_slip_threshold=support_slip_threshold,
+        still_blocked=still_blocked,
+        material_transition_force=material_force,
+        slip_transition_force=slip_force,
+        next_transition=next_transition,
     )
 
 
@@ -159,29 +215,46 @@ if __name__ == "__main__":
         kinetic_friction=0.25,
     )
 
-    action = Action(
-        force=30.0,
-        angle_deg=60.0,
+    probe = Action(
+        force=5.0,
+        angle_deg=45.0,
     )
 
-    result = resolve_step(params, action)
+    result = run_safe_probe(
+        params,
+        probe,
+    )
 
-    print("True mode:", result.mode.value)
+    print("Safe probe still blocked:", result.still_blocked)
+
     print()
     print("Agent observation:")
     print("Fx:", round(result.observation.fx, 3), "N")
     print("Fy:", round(result.observation.fy, 3), "N")
-    print("tip_dx:", round(result.observation.tip_dx, 5), "m")
-    print("tip_dy:", round(result.observation.tip_dy, 5), "m")
-    print()
-    print("Researcher-only hidden values:")
     print(
-        "Material yield threshold:",
-        round(result.material_yield_threshold, 2),
+        "tip_dx:",
+        round(result.observation.tip_dx, 6),
+        "m",
+    )
+    print(
+        "tip_dy:",
+        round(result.observation.tip_dy, 6),
+        "m",
+    )
+
+    print()
+    print("Researcher-only future truth:")
+    print(
+        "Next transition:",
+        result.next_transition.value,
+    )
+    print(
+        "Material transition force:",
+        round(result.material_transition_force, 2),
         "N",
     )
     print(
-        "Support slip threshold:",
-        round(result.support_slip_threshold, 2),
+        "Slip transition force:",
+        round(result.slip_transition_force, 2),
         "N",
     )
