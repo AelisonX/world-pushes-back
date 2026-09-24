@@ -1301,7 +1301,7 @@ def run_validation() -> dict:
                 estimator_consistent
             ),
         },
-        "parent_phase0_5_attempt_1_remains_invalid": true,
+        "parent_phase0_5_attempt_1_remains_invalid": True,
     }
 
     with RESULTS_PATH.open(
