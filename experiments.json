@@ -1,0 +1,217 @@
+{
+  "project": "world-pushes-back",
+  "phase": "Phase 0",
+  "status": "design-freeze implementation",
+  "research_question": "How much information about an impending support-slip transition is available from safe tool-side interaction before significant slip occurs?",
+  "experiments": [
+    {
+      "id": "E0",
+      "name": "basic_pretransition_identifiability",
+      "script": "identifiability.py",
+      "purpose": "Test whether a fixed safe tool-side probe contains enough information to predict which threshold will be reached first.",
+      "inputs": [
+        "randomized physical parameters",
+        "fixed low-force probe",
+        "rigid support model"
+      ],
+      "observations": [
+        "Fx",
+        "Fy",
+        "tip_dx",
+        "tip_dy"
+      ],
+      "labels": [
+        "MATERIAL_YIELD",
+        "SUPPORT_SLIP"
+      ],
+      "metrics": [
+        "balanced classification accuracy",
+        "classification report"
+      ],
+      "seed_policy": "fixed seed where practical",
+      "outputs": [
+        "terminal summary"
+      ]
+    },
+    {
+      "id": "E1",
+      "name": "information_vs_safety_force_sweep",
+      "script": "force_sweep.py",
+      "purpose": "Test whether stronger probing reveals more pre-transition information before increasing threshold-crossing risk.",
+      "inputs": [
+        "probe force sweep",
+        "randomized physical parameters"
+      ],
+      "metrics": [
+        "separability accuracy",
+        "transition rate",
+        "safe sample count"
+      ],
+      "outputs": [
+        "terminal table"
+      ]
+    },
+    {
+      "id": "E2",
+      "name": "rigid_vs_compliant_support",
+      "script": "compliance_ablation.py",
+      "purpose": "Test whether measurable pre-slip support motion creates useful pre-transition information.",
+      "conditions": [
+        "rigid support",
+        "compliant support"
+      ],
+      "metrics": [
+        "separability accuracy",
+        "transition rate"
+      ],
+      "outputs": [
+        "terminal comparison"
+      ]
+    },
+    {
+      "id": "E3",
+      "name": "sensor_ablation",
+      "script": "sensor_ablation.py",
+      "purpose": "Identify which tool-side observation channels carry predictive information.",
+      "feature_sets": [
+        "force_only",
+        "motion_only",
+        "tip_dx_only",
+        "full"
+      ],
+      "metrics": [
+        "5-fold cross-validated accuracy",
+        "accuracy standard deviation"
+      ],
+      "outputs": [
+        "terminal comparison"
+      ]
+    },
+    {
+      "id": "E4",
+      "name": "minimum_sensing_requirement",
+      "script": "sensing_threshold.py",
+      "purpose": "Estimate how precursor strength and motion-sensor noise jointly affect pre-transition separability.",
+      "sweeps": [
+        "pre_slip_displacement_limit",
+        "motion_noise_std"
+      ],
+      "metrics": [
+        "cross-validated classification accuracy"
+      ],
+      "outputs": [
+        "terminal matrix"
+      ]
+    },
+    {
+      "id": "E5",
+      "name": "sensing_heatmap",
+      "script": "plot_sensing_heatmap.py",
+      "purpose": "Visualize pre-transition identifiability across precursor-strength and sensor-noise conditions.",
+      "inputs": [
+        "minimum sensing requirement sweep"
+      ],
+      "outputs": [
+        "sensing_threshold_heatmap.png"
+      ]
+    },
+    {
+      "id": "E6",
+      "name": "precursor_to_noise_scaling",
+      "script": "snr_collapse.py",
+      "purpose": "Test whether identifiability approximately follows a precursor-to-noise ratio.",
+      "derived_quantity": "pre_slip_displacement_limit / motion_noise_std",
+      "metrics": [
+        "classification accuracy",
+        "cross-validation standard deviation"
+      ],
+      "outputs": [
+        "snr_collapse.png"
+      ]
+    },
+    {
+      "id": "E7",
+      "name": "phase0_results_recording",
+      "script": "record_phase0_results.py",
+      "purpose": "Create a machine-readable record of key Phase 0 sweep results.",
+      "metrics": [
+        "support model",
+        "probe force",
+        "separability accuracy",
+        "transition rate",
+        "safe sample count"
+      ],
+      "outputs": [
+        "phase0_results.csv"
+      ]
+    },
+    {
+      "id": "E8",
+      "name": "seed_robustness",
+      "script": "seed_robustness.py",
+      "purpose": "Test whether separability and transition-rate conclusions are stable across random seeds.",
+      "seed_count": 10,
+      "metrics": [
+        "accuracy mean",
+        "accuracy standard deviation",
+        "accuracy minimum",
+        "accuracy maximum",
+        "transition-rate mean",
+        "transition-rate standard deviation"
+      ],
+      "outputs": [
+        "terminal robustness summary"
+      ]
+    },
+    {
+      "id": "E9",
+      "name": "parameter_sensitivity",
+      "script": "parameter_sensitivity.py",
+      "purpose": "Test whether conclusions depend strongly on the sampled physical parameter ranges.",
+      "scenarios": [
+        "baseline",
+        "light_containers",
+        "heavy_containers",
+        "low_friction",
+        "high_friction",
+        "soft_material",
+        "hard_material"
+      ],
+      "conditions": [
+        "rigid support",
+        "compliant support"
+      ],
+      "metrics": [
+        "separability accuracy",
+        "transition rate",
+        "safe sample count"
+      ],
+      "outputs": [
+        "terminal sensitivity summary"
+      ]
+    }
+  ],
+  "kill_criteria": [
+    {
+      "id": "A",
+      "name": "no_useful_preslip_information",
+      "rule": "If no legal tool-side interaction produces meaningful pre-transition separability before significant slip occurs, report the limitation and stop rather than silently adding direct container-pose sensing."
+    },
+    {
+      "id": "B",
+      "name": "no_safety_benefit",
+      "rule": "If later active diagnosis improves inference but does not reduce unsafe force escalation relative to a push-harder baseline, the original safety motivation is not supported."
+    },
+    {
+      "id": "C",
+      "name": "excessive_diagnostic_cost",
+      "rule": "If useful inference requires too many diagnostic actions or too much time to fit within the intended safety budget, the method is not useful under the intended setting."
+    }
+  ],
+  "notes": [
+    "Generated results are properties of the toy model, not claims about real robotic hardware.",
+    "Container pose is intentionally hidden in the default Phase 0 condition.",
+    "Mismatch detection itself is not claimed as novel.",
+    "Synthetic Gut and internal embodiment are out of scope for this repository."
+  ]
+}
