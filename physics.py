@@ -27,12 +27,15 @@ class PhysicalParams:
     # deformation can vary independently of support-slip proximity.
     contact_stiffness: float = 20_000.0
 
-    # Maximum tiny support displacement allowed before slip.
-    #
-    # This is NOT full container sliding.
-    # It represents small pre-slip compliance from things such as
-    # rubber feet, mounts, wheels, or deformable support contact.
+    # Base scale for tiny pre-slip support displacement.
     pre_slip_displacement_limit: float = 0.002
+
+    # World-specific gain on the modeled pre-slip support motion.
+    #
+    # Phase 0 implicitly used a fixed gain of 1.0.
+    # Phase 0.5 allows this gain to vary independently so a single
+    # measured displacement cannot directly decode slip proximity.
+    support_gain: float = 1.0
 
 
 @dataclass
@@ -196,16 +199,7 @@ def support_load_fraction(
 
         normal_force = m*g + Fy
 
-    Under the model used here:
-
-        load_fraction < 1
-            support remains below the ideal slip threshold
-
-        load_fraction >= 1
-            ideal support-slip threshold has been reached
-
-    The returned value is not clipped so tests and diagnostics
-    can inspect overload conditions explicitly.
+    The value is intentionally not clipped.
     """
 
     normal_force = (
@@ -241,14 +235,13 @@ def compute_pre_slip_support_motion(
     direction: float,
 ) -> float:
     """
-    Simple pre-slip support-compliance model.
+    Base pre-slip support-compliance model.
 
-    Tiny support displacement grows as friction demand approaches
-    static-friction capacity.
+    The base displacement grows linearly with friction demand
+    until the ideal static-friction boundary is reached.
 
-    This is an explicit toy-model assumption for the compliant
-    ablation. It is NOT a claim that real static friction always
-    produces this linear displacement law.
+    World-specific support_gain is applied separately by
+    run_safe_probe.
     """
 
     if (
@@ -284,21 +277,10 @@ def run_safe_probe(
     support_model: str = "rigid",
 ) -> ProbeResult:
     """
-    Apply a probe before either transition occurs.
+    Apply one probe and return noisy tool-side observations.
 
-    support_model:
-        "rigid"
-            Idealized Coulomb support.
-            No pre-slip support motion.
-
-        "compliant"
-            Support produces a tiny modeled pre-slip displacement
-            as static-friction demand approaches capacity.
-
-    The agent receives only noisy tool-side observations.
-
-    Hidden transition thresholds are returned for researcher
-    evaluation only.
+    Hidden world parameters and transition thresholds remain
+    researcher-only information.
     """
 
     if support_model not in {
@@ -313,6 +295,11 @@ def run_safe_probe(
     if params.contact_stiffness <= 0:
         raise ValueError(
             "contact_stiffness must be positive"
+        )
+
+    if params.support_gain <= 0:
+        raise ValueError(
+            "support_gain must be positive"
         )
 
     theta = math.radians(
@@ -348,10 +335,6 @@ def run_safe_probe(
         < first_transition_force
     )
 
-    # Generic local contact compliance.
-    #
-    # Phase 0.5 treats stiffness as a world-specific nuisance
-    # parameter rather than a globally fixed constant.
     local_tip_dx = (
         true_fx
         / params.contact_stiffness
@@ -373,7 +356,7 @@ def run_safe_probe(
             )
         )
 
-        support_dx = (
+        base_support_dx = (
             compute_pre_slip_support_motion(
                 load_fraction=load_fraction,
                 pre_slip_displacement_limit=(
@@ -383,10 +366,11 @@ def run_safe_probe(
             )
         )
 
-    # World-frame tool-tip displacement contains:
-    #
-    # 1. local contact compliance
-    # 2. modeled support motion transmitted through contact
+        support_dx = (
+            params.support_gain
+            * base_support_dx
+        )
+
     tip_dx = (
         local_tip_dx
         + support_dx
