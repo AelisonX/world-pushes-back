@@ -13,13 +13,6 @@ NUM_SAMPLES = 1000
 
 
 def sample_params() -> PhysicalParams:
-    """
-    Randomly sample a small physical world.
-
-    These ranges are intentionally simple.
-    They are not intended to represent realistic ice cream yet.
-    """
-
     return PhysicalParams(
         material_yield_strength=random.uniform(80_000, 180_000),
         contact_area=random.uniform(0.00005, 0.00015),
@@ -30,10 +23,6 @@ def sample_params() -> PhysicalParams:
 
 
 def run_low_force_push(params: PhysicalParams):
-    """
-    Apply one fixed low-force diagnostic action.
-    """
-
     action = Action(
         force=20.0,
         angle_deg=45.0,
@@ -52,10 +41,10 @@ def collect_results(num_samples: int = NUM_SAMPLES):
         results.append(
             {
                 "mode": result.mode,
-                "normal_force": result.normal_force,
-                "horizontal_force": result.horizontal_force,
-                "yield_threshold": result.material_yield_threshold,
-                "slip_threshold": result.support_slip_threshold,
+                "fx": result.observation.fx,
+                "fy": result.observation.fy,
+                "tip_dx": result.observation.tip_dx,
+                "tip_dy": result.observation.tip_dy,
             }
         )
 
@@ -75,7 +64,7 @@ def summarize(results):
 
     print()
 
-    print("=== Example observations ===")
+    print("=== Example agent observations ===")
 
     for mode in ContactMode:
         examples = [
@@ -92,10 +81,10 @@ def summarize(results):
         for item in examples:
             print(
                 "  "
-                f"normal={item['normal_force']:.2f} N, "
-                f"horizontal={item['horizontal_force']:.2f} N, "
-                f"yield_threshold={item['yield_threshold']:.2f} N, "
-                f"slip_threshold={item['slip_threshold']:.2f} N"
+                f"Fx={item['fx']:.2f} N, "
+                f"Fy={item['fy']:.2f} N, "
+                f"tip_dx={item['tip_dx']:.5f} m, "
+                f"tip_dy={item['tip_dy']:.5f} m"
             )
 
 
