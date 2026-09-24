@@ -64,9 +64,32 @@ Only after that question is answered does it make sense to ask which action a ro
 Phase 0    — Identifiability                         COMPLETE
 Phase 0.5  — Confounded Identifiability              COMPLETE
 Attempt 1  — Bayes confirmatory reference            INVALID: ESS
-Phase 0.5b — Bayes numerical repair validation       PASS
-Phase 1    — Diagnostic Action Value                  UNLOCKED
+Phase 0.5b — Bayes numerical repair + sampler audit  PASS
+Phase 1A   — Action-Grid Cohort Feasibility          COMPLETE
+Phase 1B   — Diagnostic Action Value                  NOT YET RUN
 ```
+
+Phase 1A tested whether nine candidate diagnostic actions could still be compared on a broad common population of hidden worlds before any action-value ranking was allowed.
+
+Result:
+
+```text
+5,000 identification pairs
+10,000 simulated worlds
+
+4,809 pairs legal under all nine actions
+universal retention = 0.9618
+
+redesign triggers = 0
+```
+
+The grid passed the frozen Phase 1A feasibility criteria.
+
+High retention also suggests that the current action grid is conservative: selection bias was not strongly stressed, and Phase 1B may find that the candidate actions are too similar in information value to produce a meaningful contrast.
+
+See:
+
+[PHASE1A_FINDINGS.md](PHASE1A_FINDINGS.md)
 
 The project is not yet testing an intelligent policy.
 
@@ -277,64 +300,51 @@ Interpretation:
 targeting width = 1 × motion-noise standard deviation
 ```
 
-Importance correction preserves the original scientific prior.
+Importance correction preserves the empirical class-conditional target distribution used by the Bayes reference.
 
 ---
 
-## Independent validation
+## Realized sampler validation
 
-Phase 0.5b used:
+The initial Phase 0.5b study showed that the targeted proposal had much better theoretical ESS characteristics.
 
-- a new dataset seed
-- a new split seed
-- a new Bayes particle seed
-- the same physical model
-- the same observation model
-- the same likelihood
-- the same ESS thresholds
-- the same safety rules
+A later prospective audit then tested actual finite-sample categorical draws from that proposal.
 
 Result:
 
 ```text
-PHASE0_5B_VALIDATION_PASS
+PHASE0_5B_REALIZED_SAMPLER_AUDIT_PASS
 ```
 
-Bayes AUC:
-
-```text
-Uniform  = 0.809232
-Targeted = 0.809232
-```
-
-Targeted ESS:
+Targeted realized ESS:
 
 ```text
 MATERIAL_YIELD
-p05    = 0.66721
-median = 0.91756
+p05    ≈ 0.690
+median ≈ 0.923
 
 SUPPORT_SLIP
-p05    = 0.66467
-median = 0.91359
+p05    ≈ 0.719
+median ≈ 0.920
 ```
 
-Required thresholds:
+Frozen thresholds:
 
 ```text
 p05    >= 0.05
 median >= 0.20
 ```
 
-Maximum posterior difference between uniform and targeted estimators:
+Targeted posterior error against the exact full empirical-bank reference was also small:
 
 ```text
-1.4432899320127035e-15
+p95 absolute error ≈ 0.00158
+maximum error      ≈ 0.00522
 ```
 
-Interpretation:
+The original Phase 0.5 Attempt 1 remains invalid.
 
-> The targeted proposal repaired the numerical ESS problem without materially changing the Bayes estimator.
+The later numerical repair does not retroactively change that historical result.
 
 ---
 
@@ -356,18 +366,118 @@ Occurrence and identifiability are different questions.
 
 ---
 
+# Phase 1A — Action-Grid Cohort Feasibility
+
+Before comparing which physical action reveals more information, Phase 1A asked a narrower question:
+
+> Can the candidate actions be compared on the same hidden worlds, or does action legality silently rewrite the sample?
+
+The frozen exploratory grid contained nine actions:
+
+```text
+3 N × 30°
+3 N × 45°
+3 N × 60°
+
+5 N × 30°
+5 N × 45°
+5 N × 60°
+
+7 N × 30°
+7 N × 45°
+7 N × 60°
+```
+
+These are simulator forces, not calibrated real-world ice-cream forces.
+
+The future-transition target remained fixed at the nominal 45-degree continuation angle for every diagnostic action.
+
+In other words:
+
+> changing the probe angle did not change the scoring target.
+
+---
+
+## Phase 1A result
+
+The frozen run generated:
+
+```text
+5,000 identification pairs
+10,000 simulated worlds
+```
+
+Universal legality required both twins in a pair to remain legal under all nine actions.
+
+Result:
+
+```text
+4,809 universally legal pairs
+universal retention = 96.18%
+```
+
+Per-action legal-pair fractions ranged from:
+
+```text
+96.70% to 100%
+```
+
+The most restrictive grid cell was:
+
+```text
+7 N × 30°
+```
+
+Removing it increased universal retention by only:
+
+```text
+3.02 percentage points
+```
+
+The frozen single-action bottleneck threshold was:
+
+```text
+20 percentage points
+```
+
+All nine per-action Bayes ESS numerical checks passed.
+
+Hidden-parameter and target-margin shift diagnostics stayed below the frozen redesign thresholds; exact values are retained in the Phase 1A findings artifact.
+
+No preregistered redesign trigger fired.
+
+Therefore:
+
+```text
+PHASE1A_GRID_FEASIBLE
+```
+
+This does not mean the current grid is difficult.
+
+The high retention itself suggests that the grid is relatively conservative.
+
+That matters for Phase 1B: nine actions can all be legal and still be too similar to produce a meaningful information-value contrast.
+
+See:
+
+[PHASE1A_FINDINGS.md](PHASE1A_FINDINGS.md)
+
+---
+
 # What the project currently supports
 
 Within the current toy simulator:
 
 - compliant pre-slip motion can contain information about the future transition
 - horizontal tool-tip displacement carries most of that useful signal
-- force-only observations remain near chance
+- force-only observations remain near chance under the frozen Phase 0.5 design
 - rigid support removes the useful compliant-motion signal
 - the paired identification design produces substantially above-chance separability
 - the learned classifier and Bayes reference agree closely
 - uniform Monte Carlo sampling can suffer severe lower-tail ESS collapse
-- a targeted importance proposal can repair that numerical problem without changing the scientific posterior
+- the targeted importance proposal works as a finite-sample sampler over the audited empirical particle prior
+- the current nine-action Phase 1A grid retains 96.18% of target-valid pairs under universal legality
+- no frozen Phase 1A cohort-redesign trigger fired
 
 ---
 
@@ -384,10 +494,12 @@ This repository does not currently demonstrate:
 - superiority over conventional robotics control
 - a universal theory of embodied intelligence
 - a general robotics benchmark
+- an optimal diagnostic action
+- an action-information ranking
 
-Phase 0.5b validates the numerical repair.
+Phase 1A validates the feasibility of the comparison design under the current toy simulator.
 
-It does not validate the physical model itself.
+It does not establish which action is most informative.
 
 ---
 
@@ -425,10 +537,22 @@ python phase0_5_bayes_ess_ablation.py
 python phase0_5_bayes_targeted_proposal.py
 ```
 
-Run the independent Phase 0.5b validation:
+Run the Phase 0.5b validation:
 
 ```bash
 python run_phase0_5b_validation.py
+```
+
+Run the realized importance-sampler audit:
+
+```bash
+python phase0_5b_sampler_audit.py
+```
+
+Run Phase 1A action-grid feasibility:
+
+```bash
+python phase1a_feasibility.py
 ```
 
 The GitHub Actions workflow runs the complete research pipeline automatically.
@@ -444,51 +568,46 @@ PHASE0_5_PLAN.md
 PHASE0_5_MANIFEST.json
 PHASE0_5B_MANIFEST.json
 PHASE0_5B_FINDINGS.md
+PHASE0_5B_SAMPLER_AUDIT.md
+PHASE0_5B_SAMPLER_AUDIT_MANIFEST.json
+PHASE0_5B_SAMPLER_AUDIT_FINDINGS.md
+PHASE1_PLAN.md
+PHASE1A_FEASIBILITY_PLAN.md
+PHASE1A_FEASIBILITY_MANIFEST.json
+PHASE1A_FINDINGS.md
 RESULTS.md
 ```
 
 ---
 
-# Phase 1
+# Phase 1B
 
-Phase 1 is now unlocked.
+Phase 1A has established that the current candidate action grid can be compared on a broad common legal cohort under the frozen feasibility rules.
 
 The next research question is:
 
-> Which legal physical action provides the most useful information about the future transition under a fixed safety budget?
+> Given the same hidden world, which legal physical action changes what the agent can know before the physical transition occurs?
 
-This phase is called:
+Phase 1B will require freezing, before inspecting action-value results:
 
-**Diagnostic Action Value**
+1. the primary information-value metric
+2. the same-world action comparison
+3. noise coupling
+4. the policy-risk view
+5. the estimator
+6. fresh seeds
+7. confirmatory acceptance criteria
+8. a minimum meaningful action-information difference
 
-The goal is not to build a more complicated classifier.
+If observed differences fall below that frozen minimum effect, the interpretation will be:
 
-The goal is to compare ordinary physical actions according to how much useful information they provide relative to their physical risk.
+> the current action grid is too similar to distinguish meaningfully
 
-Possible action dimensions include:
+not:
 
-- force magnitude
-- force direction
-- lateral nudges
-- unload-and-hold behavior
-- repeated low-risk observations
+> the physical world contains no useful constraint information
 
-There is no magical `PROBE` action.
-
-Every diagnostic action must be an ordinary physical intervention.
-
----
-
-# Phase 1 entry rule
-
-Before running Phase 1 experiments:
-
-1. define the legal action set
-2. define the safety budget
-3. define the information-value metric
-4. define same-world counterfactual action comparison
-5. freeze the evaluation protocol
-6. only then run action comparisons
+No Phase 1B action-value comparison has been run yet.
 
 ---
 
@@ -498,6 +617,8 @@ The world may expose information before it changes state.
 
 But useful information is not enough by itself.
 
-The estimator must know where to look.
+Before comparing actions, the experiment must also make sure that the actions are still being tested on meaningfully comparable worlds.
 
-The next question is whether the robot can choose an action that reveals more while risking less.
+Phase 1A passed that feasibility check.
+
+The next question is whether different legal actions actually reveal meaningfully different information.
