@@ -18,9 +18,7 @@ def collect_snr_results():
             random.seed(42)
 
             samples = collect_samples(
-                pre_slip_displacement_limit=(
-                    pre_slip_limit
-                ),
+                pre_slip_displacement_limit=pre_slip_limit,
                 motion_noise_std=noise_level,
             )
 
@@ -31,30 +29,26 @@ def collect_snr_results():
             if evaluation is None:
                 continue
 
-            mean_accuracy, std_accuracy = (
-                evaluation
-            )
+            mean_accuracy, std_accuracy = evaluation
+
+            if noise_level <= 0:
+                continue
 
             snr = (
                 pre_slip_limit
                 / noise_level
             )
 
+            if snr <= 0:
+                continue
+
             results.append(
                 {
-                    "pre_slip_limit": (
-                        pre_slip_limit
-                    ),
-                    "noise_level": (
-                        noise_level
-                    ),
+                    "pre_slip_limit": pre_slip_limit,
+                    "noise_level": noise_level,
                     "snr": snr,
-                    "accuracy": (
-                        mean_accuracy
-                    ),
-                    "std": (
-                        std_accuracy
-                    ),
+                    "accuracy": mean_accuracy,
+                    "std": std_accuracy,
                 }
             )
 
@@ -88,8 +82,19 @@ def print_results(results):
 
 
 def plot_results(results):
+    filtered_results = [
+        item
+        for item in results
+        if item["snr"] > 0
+    ]
+
+    if not filtered_results:
+        raise RuntimeError(
+            "No positive SNR values are available for plotting."
+        )
+
     sorted_results = sorted(
-        results,
+        filtered_results,
         key=lambda x: x["snr"],
     )
 
@@ -161,7 +166,9 @@ def plot_results(results):
         f"Saved: {output_path}"
     )
 
-    plt.show()
+    plt.close(
+        fig
+    )
 
 
 def main():
