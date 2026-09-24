@@ -14,6 +14,7 @@ def make_params(
     static_friction=0.35,
     material_yield_strength=120_000,
     contact_area=0.0001,
+    contact_stiffness=20_000.0,
 ):
     return PhysicalParams(
         material_yield_strength=(
@@ -22,7 +23,9 @@ def make_params(
         contact_area=contact_area,
         container_mass=container_mass,
         static_friction=static_friction,
-        kinetic_friction=0.25,
+        kinetic_friction=0.25,contact_stiffness=(
+            contact_stiffness
+        ),
     )
 
 
@@ -142,8 +145,10 @@ def test_larger_contact_area_raises_yield_threshold():
     )
 
 
-def test_rigid_support_has_no_pre_slip_support_motion():
-    params = make_params()
+def test_rigid_support_uses_world_contact_stiffness():
+    params = make_params(
+        contact_stiffness=10_000.0,
+    )
 
     result = run_safe_probe(
         params=params,
@@ -158,7 +163,7 @@ def test_rigid_support_has_no_pre_slip_support_motion():
 
     expected_local_dx = (
         result.observation.fx
-        / 20_000.0
+        / params.contact_stiffness
     )
 
     assert (
@@ -168,6 +173,74 @@ def test_rigid_support_has_no_pre_slip_support_motion():
         )
         < 1e-12
     )
+    
+    
+    def test_lower_contact_stiffness_increases_local_tip_motion():
+    soft = make_params(
+        contact_stiffness=10_000.0,
+    )
+
+    stiff = make_params(
+        contact_stiffness=40_000.0,
+    )
+
+    action = Action(
+        force=5.0,
+        angle_deg=45.0,
+    )
+
+    soft_result = run_safe_probe(
+        params=soft,
+        action=action,
+        support_model="rigid",
+        force_noise_std=0.0,
+        motion_noise_std=0.0,
+    )
+
+    stiff_result = run_safe_probe(
+        params=stiff,
+        action=action,
+        support_model="rigid",
+        force_noise_std=0.0,
+        motion_noise_std=0.0,
+    )
+
+    assert (
+        abs(
+            soft_result.observation.tip_dx
+        )
+        >
+        abs(
+            stiff_result.observation.tip_dx
+        )
+    )
+
+
+def test_nonpositive_contact_stiffness_is_rejected():
+    params = make_params(
+        contact_stiffness=0.0,
+    )
+
+    try:
+        run_safe_probe(
+            params=params,
+            action=Action(
+                force=5.0,
+                angle_deg=45.0,
+            ),
+            support_model="rigid",
+            force_noise_std=0.0,
+            motion_noise_std=0.0,
+        )
+    except ValueError as error:
+        assert (
+            "contact_stiffness"
+            in str(error)
+        )
+    else:
+        raise AssertionError(
+            "Expected nonpositive contact stiffness to fail"
+        )
 
 
 def test_support_load_fraction_increases_with_horizontal_demand():
