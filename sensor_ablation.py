@@ -5,6 +5,8 @@ import numpy as np
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import StratifiedKFold
 from sklearn.model_selection import cross_val_score
+from sklearn.pipeline import make_pipeline
+from sklearn.preprocessing import StandardScaler
 
 from physics import (
     Action,
@@ -174,8 +176,11 @@ def evaluate_feature_set(
         feature_names,
     )
 
-    model = LogisticRegression(
-        max_iter=2000,
+    model = make_pipeline(
+        StandardScaler(),
+        LogisticRegression(
+            max_iter=2000,
+        ),
     )
 
     cv = StratifiedKFold(
@@ -193,8 +198,12 @@ def evaluate_feature_set(
     )
 
     return (
-        float(np.mean(scores)),
-        float(np.std(scores)),
+        float(
+            np.mean(scores)
+        ),
+        float(
+            np.std(scores)
+        ),
     )
 
 
@@ -202,12 +211,14 @@ def run_ablation(
     support_model: str,
 ):
     print()
+
     print(
         f"=== {support_model.upper()} SUPPORT ==="
     )
 
     for probe_force in PROBE_FORCES:
         print()
+
         print(
             f"Probe force: {probe_force:.1f} N"
         )
@@ -225,6 +236,7 @@ def run_ablation(
             print(
                 "Not enough balanced samples."
             )
+
             continue
 
         print(
