@@ -352,7 +352,7 @@ def run_safe_probe(
             "contact_stiffness must be positive"
         )
 
-    local_tip_dx = (
+        local_tip_dx = (
         true_fx
         / params.contact_stiffness
     )
@@ -362,12 +362,7 @@ def run_safe_probe(
         / params.contact_stiffness
     )
 
-    local_tip_dy = (
-        -true_fy
-        / contact_stiffness
-    )
-
-    support_dx = 0.0
+        support_dx = 0.0
 
     if support_model == "compliant":
         load_fraction = (
