@@ -3,6 +3,8 @@ import random
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score
 from sklearn.model_selection import train_test_split
+from sklearn.pipeline import make_pipeline
+from sklearn.preprocessing import StandardScaler
 
 from physics import (
     Action,
@@ -167,8 +169,11 @@ def estimate_accuracy(samples):
         stratify=y,
     )
 
-    model = LogisticRegression(
-        max_iter=2000,
+    model = make_pipeline(
+        StandardScaler(),
+        LogisticRegression(
+            max_iter=2000,
+        ),
     )
 
     model.fit(
@@ -190,6 +195,7 @@ def run_condition(
     support_model: str,
 ):
     print()
+
     print(
         f"=== {support_model.upper()} SUPPORT ==="
     )
@@ -240,8 +246,6 @@ def main():
         "rigid"
     )
 
-    # Reset seed so both support models receive
-    # comparable randomized worlds.
     random.seed(42)
 
     run_condition(
