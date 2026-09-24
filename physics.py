@@ -51,8 +51,17 @@ class ProbeResult:
     next_transition: NextTransition
 
 
-def add_noise(value: float, std: float) -> float:
-    return value + random.gauss(0.0, std)
+def add_noise(
+    value: float,
+    std: float,
+) -> float:
+    return (
+        value
+        + random.gauss(
+            0.0,
+            std,
+        )
+    )
 
 
 def material_transition_force(
@@ -64,18 +73,28 @@ def material_transition_force(
     at a fixed force angle.
     """
 
-    theta = math.radians(angle_deg)
-    vertical_fraction = math.sin(theta)
+    theta = math.radians(
+        angle_deg
+    )
+
+    vertical_fraction = math.sin(
+        theta
+    )
 
     if vertical_fraction <= 0:
-        return float("inf")
+        return float(
+            "inf"
+        )
 
     yield_force = (
         params.material_yield_strength
         * params.contact_area
     )
 
-    return yield_force / vertical_fraction
+    return (
+        yield_force
+        / vertical_fraction
+    )
 
 
 def slip_transition_force(
@@ -85,22 +104,30 @@ def slip_transition_force(
     """
     Total applied force required to reach support slip.
 
-    Slip begins when:
+    Slip begins when horizontal friction demand exceeds
+    available static-friction capacity:
 
-    F*cos(theta)
-    >
-    mu_s * (m*g + F*sin(theta))
+        F*cos(theta)
+        >
+        mu_s * (m*g + F*sin(theta))
     """
 
-    theta = math.radians(angle_deg)
+    theta = math.radians(
+        angle_deg
+    )
 
     denominator = (
         math.cos(theta)
-        - params.static_friction * math.sin(theta)
+        - (
+            params.static_friction
+            * math.sin(theta)
+        )
     )
 
     if denominator <= 0:
-        return float("inf")
+        return float(
+            "inf"
+        )
 
     return (
         params.static_friction
@@ -113,7 +140,11 @@ def slip_transition_force(
 def predict_next_transition(
     params: PhysicalParams,
     angle_deg: float,
-) -> tuple[NextTransition, float, float]:
+) -> tuple[
+    NextTransition,
+    float,
+    float,
+]:
     material_force = material_transition_force(
         params,
         angle_deg,
@@ -125,9 +156,13 @@ def predict_next_transition(
     )
 
     if material_force <= slip_force:
-        next_transition = NextTransition.MATERIAL_YIELD
+        next_transition = (
+            NextTransition.MATERIAL_YIELD
+        )
     else:
-        next_transition = NextTransition.SUPPORT_SLIP
+        next_transition = (
+            NextTransition.SUPPORT_SLIP
+        )
 
     return (
         next_transition,
@@ -136,37 +171,101 @@ def predict_next_transition(
     )
 
 
-def compute_pre_slip_support_motion(
+def support_load_fraction(
+    params: PhysicalParams,
     true_fx: float,
-    slip_force: float,
+    true_fy: float,
+) -> float:
+    """
+    Return static-friction demand divided by capacity.
+
+    demand:
+        abs(Fx)
+
+    capacity:
+        mu_s * normal_force
+
+    where:
+
+        normal_force = m*g + Fy
+
+    Under the model used here:
+
+        load_fraction < 1
+            support remains below the ideal slip threshold
+
+        load_fraction >= 1
+            ideal support-slip threshold has been reached
+
+    The returned value is not clipped so tests and diagnostics
+    can inspect overload conditions explicitly.
+    """
+
+    normal_force = (
+        params.container_mass
+        * GRAVITY
+        + true_fy
+    )
+
+    if normal_force <= 0:
+        return float(
+            "inf"
+        )
+
+    friction_capacity = (
+        params.static_friction
+        * normal_force
+    )
+
+    if friction_capacity <= 0:
+        return float(
+            "inf"
+        )
+
+    return (
+        abs(true_fx)
+        / friction_capacity
+    )
+
+
+def compute_pre_slip_support_motion(
+    load_fraction: float,
     pre_slip_displacement_limit: float,
+    direction: float,
 ) -> float:
     """
     Simple pre-slip support-compliance model.
 
-    The closer horizontal loading gets to the support-slip
-    threshold, the larger the tiny support displacement becomes.
+    Tiny support displacement grows as friction demand approaches
+    static-friction capacity.
 
-    This is an explicit modeling assumption for the compliant
-    ablation. It is not part of ideal Coulomb friction.
+    This is an explicit toy-model assumption for the compliant
+    ablation. It is NOT a claim that real static friction always
+    produces this linear displacement law.
     """
 
-    if slip_force <= 0 or math.isinf(slip_force):
+    if (
+        load_fraction <= 0
+        or math.isnan(load_fraction)
+    ):
         return 0.0
 
-    load_fraction = min(
-        abs(true_fx) / slip_force,
+    bounded_fraction = min(
+        load_fraction,
         1.0,
     )
 
     displacement = (
         pre_slip_displacement_limit
-        * load_fraction
+        * bounded_fraction
     )
+
+    if direction == 0:
+        return 0.0
 
     return math.copysign(
         displacement,
-        true_fx,
+        direction,
     )
 
 
@@ -182,11 +281,12 @@ def run_safe_probe(
 
     support_model:
         "rigid"
-            Idealized Coulomb support. No pre-slip motion.
+            Idealized Coulomb support.
+            No pre-slip support motion.
 
         "compliant"
-            Support produces a tiny pre-slip displacement
-            that grows as loading approaches the slip threshold.
+            Support produces a tiny modeled pre-slip displacement
+            as static-friction demand approaches capacity.
 
     The agent receives only noisy tool-side observations.
 
@@ -199,7 +299,8 @@ def run_safe_probe(
         "compliant",
     }:
         raise ValueError(
-            "support_model must be 'rigid' or 'compliant'"
+            "support_model must be "
+            "'rigid' or 'compliant'"
         )
 
     theta = math.radians(
@@ -239,37 +340,53 @@ def run_safe_probe(
     #
     # This is intentionally independent of the hidden
     # material/slip thresholds.
-    contact_stiffness = 20_000.0
+    contact_stiffness = (
+        20_000.0
+    )
 
     local_tip_dx = (
-        true_fx / contact_stiffness
+        true_fx
+        / contact_stiffness
     )
 
     local_tip_dy = (
-        -true_fy / contact_stiffness
+        -true_fy
+        / contact_stiffness
     )
 
     support_dx = 0.0
 
     if support_model == "compliant":
-        support_dx = compute_pre_slip_support_motion(
-            true_fx=true_fx,
-            slip_force=slip_force,
-            pre_slip_displacement_limit=(
-                params.pre_slip_displacement_limit
-            ),
+        load_fraction = (
+            support_load_fraction(
+                params=params,
+                true_fx=true_fx,
+                true_fy=true_fy,
+            )
         )
 
-    # World-frame tool-tip displacement contains both:
+        support_dx = (
+            compute_pre_slip_support_motion(
+                load_fraction=load_fraction,
+                pre_slip_displacement_limit=(
+                    params.pre_slip_displacement_limit
+                ),
+                direction=true_fx,
+            )
+        )
+
+    # World-frame tool-tip displacement contains:
     #
     # 1. local contact compliance
-    # 2. any tiny support motion transmitted through contact
+    # 2. modeled support motion transmitted through contact
     tip_dx = (
         local_tip_dx
         + support_dx
     )
 
-    tip_dy = local_tip_dy
+    tip_dy = (
+        local_tip_dy
+    )
 
     observation = Observation(
         fx=add_noise(
@@ -293,14 +410,22 @@ def run_safe_probe(
     return ProbeResult(
         observation=observation,
         still_blocked=still_blocked,
-        material_transition_force=material_force,
-        slip_transition_force=slip_force,
-        next_transition=next_transition,
+        material_transition_force=(
+            material_force
+        ),
+        slip_transition_force=(
+            slip_force
+        ),
+        next_transition=(
+            next_transition
+        ),
     )
 
 
 if __name__ == "__main__":
-    random.seed(42)
+    random.seed(
+        42
+    )
 
     params = PhysicalParams(
         material_yield_strength=120_000,
@@ -326,7 +451,9 @@ if __name__ == "__main__":
         )
 
         print(
-            f"=== {support_model.upper()} SUPPORT ==="
+            f"=== "
+            f"{support_model.upper()} "
+            f"SUPPORT ==="
         )
 
         print(
