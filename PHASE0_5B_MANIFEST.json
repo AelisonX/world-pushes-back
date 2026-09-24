@@ -1,0 +1,163 @@
+{
+  "experiment": "Phase 0.5b - Bayes Proposal Repair Validation",
+  "manifest_version": "1.0",
+  "status": "FROZEN_BEFORE_VALIDATION_RUN",
+
+  "parent_experiment": {
+    "name": "Phase 0.5 - Confounded Identifiability",
+    "parent_manifest": "PHASE0_5_MANIFEST.json",
+    "parent_manifest_version": "1.1",
+    "parent_confirmatory_status": "CONFIRMATORY_RUN_INVALID_BAYES_ESS"
+  },
+
+  "purpose": "Validate on new independent data whether a preregistered tip-dx-targeted defensive-mixture importance proposal repairs the lower-tail Bayes ESS failure observed in Phase 0.5 without changing the physical model, likelihood, legal observations, safety rules, labels, or ESS thresholds.",
+
+  "exploratory_evidence_used_to_select_proposal": {
+    "source": "phase0_5_bayes_targeted_proposal.py",
+    "selection_data": "the already observed Phase 0.5 confirmatory held-out set",
+    "selected_proposal": "A0.10_T1.0",
+    "important_limitation": "The exploratory data used to choose this proposal cannot be reused to validate it."
+  },
+
+  "proposal": {
+    "type": "defensive_mixture_importance_proposal",
+    "target_channel": "tip_dx",
+    "uniform_prior_mixture_weight_alpha": 0.10,
+    "targeted_kernel_mixture_weight": 0.90,
+    "kernel": "Gaussian similarity kernel over noiseless particle mean tip_dx relative to the current observation",
+    "tau_definition": "1.0 * motion_noise_std_m",
+    "tau_m": 0.0002,
+    "importance_weight_correction_required": true,
+    "target_distribution": "original frozen class-conditional safe paired identification prior"
+  },
+
+  "scientific_model_changes": {
+    "physical_model_changed": false,
+    "label_definition_changed": false,
+    "probe_changed": false,
+    "safe_cohort_changed": false,
+    "noise_model_changed": false,
+    "legal_observations_changed": false,
+    "likelihood_changed": false,
+    "class_prior_changed": false,
+    "ess_threshold_changed": false
+  },
+
+  "labels": [
+    "MATERIAL_YIELD",
+    "SUPPORT_SLIP"
+  ],
+
+  "probe": {
+    "force_N": 5.0,
+    "angle_deg": 45.0
+  },
+
+  "safe_cohort": {
+    "rho_safe_max": 0.80,
+    "normal_force_must_be_positive": true,
+    "probe_must_precede_first_transition": true,
+    "clipped_support_regime_allowed": false,
+    "pair_rejected_if_either_twin_fails": true,
+    "generation_max_attempts": 10000,
+    "epsilon_tie": 0.10
+  },
+
+  "noise_model": {
+    "force_noise_std_N": 0.20,
+    "motion_noise_std_m": 0.0002,
+    "distribution": "Gaussian additive",
+    "class_independent": true,
+    "shared_realization_within_pair": true
+  },
+
+  "legal_observation": [
+    "Fx",
+    "Fy",
+    "tip_dx",
+    "tip_dy"
+  ],
+
+  "validation_dataset": {
+    "independent_of_phase0_5_confirmatory_data": true,
+    "n_pairs": 2000,
+    "rows_per_pair": 2,
+    "total_rows": 4000,
+    "test_fraction": 0.25,
+    "split_unit": "pair_id",
+    "dataset_seed": 20260927,
+    "split_seed": 628319
+  },
+
+  "bayes_validation": {
+    "particles": 20000,
+    "particles_per_class": 10000,
+    "particle_seed": 20260928,
+    "class_prior": "balanced by construction",
+    "likelihood": "exact Gaussian observation likelihood under the frozen simulator noise model",
+    "hidden_state_access": false,
+    "evaluation_set": "new Phase 0.5b held-out compliant test records only"
+  },
+
+  "ess_criterion": {
+    "applies_to_each_class_separately": true,
+    "minimum_p05_ess_fraction": 0.05,
+    "minimum_median_ess_fraction": 0.20,
+    "minimum_single_observation_ess": "report_only",
+    "changed_from_phase0_5": false
+  },
+
+  "mandatory_comparisons": [
+    "uniform proposal ESS on the new held-out set",
+    "targeted proposal ESS on the same new held-out set",
+    "targeted proposal Bayes ROC-AUC",
+    "uniform proposal Bayes ROC-AUC",
+    "class-conditional p05 ESS fractions",
+    "class-conditional median ESS fractions"
+  ],
+
+  "success_definition": {
+    "primary": "The preregistered targeted proposal passes the frozen ESS p05 and median thresholds for both classes on the new independent held-out set.",
+    "secondary": "Targeted-proposal Bayes ROC-AUC remains statistically consistent with the underlying Phase 0.5 identification signal rather than showing evidence of estimator distortion.",
+    "uniform_proposal_required_to_pass": false
+  },
+
+  "invalid_run_conditions": [
+    "validation dataset seed changed after results are inspected",
+    "split seed changed after results are inspected",
+    "particle seed changed after results are inspected",
+    "proposal alpha changed after results are inspected",
+    "proposal tau changed after results are inspected",
+    "ESS threshold changed after results are inspected",
+    "old Phase 0.5 confirmatory held-out records reused for validation",
+    "importance correction omitted",
+    "train_test_pair_leakage",
+    "safe-cohort invariant violated",
+    "privileged hidden field used as legal observation"
+  ],
+
+  "interpretation_rules": {
+    "passing_phase0_5b_does_not_retroactively_validate_phase0_5_attempt_1": true,
+    "phase0_5_attempt_1_remains_invalid_bayes_ess": true,
+    "phase0_5b_only_validates_the_repaired_bayes_numerical_method": true,
+    "exploratory_proposal_search_must_not_be_reported_as_confirmatory_evidence": true
+  },
+
+  "required_reproducibility_artifacts": [
+    "Phase 0.5b manifest SHA256",
+    "code commit SHA",
+    "dataset seed",
+    "split seed",
+    "particle seed",
+    "proposal alpha",
+    "proposal tau",
+    "pair IDs",
+    "labels",
+    "legal observations",
+    "uniform Bayes AUC",
+    "targeted Bayes AUC",
+    "uniform ESS summary",
+    "targeted ESS summary",
+    "validation status"
+  ]
+}
