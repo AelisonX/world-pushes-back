@@ -79,6 +79,10 @@ jobs:
         run: |
           python run_phase0_5b_validation.py
 
+      - name: Run Phase 0.5b realized sampler audit
+        run: |
+          python phase0_5b_sampler_audit.py
+
       - name: Show generated files
         if: always()
         run: |
@@ -119,4 +123,14 @@ jobs:
             PHASE0_5B_MANIFEST.json
             phase0_5b_validation_results.json
             phase0_5b_validation_records.csv
+          if-no-files-found: error
+
+      - name: Upload Phase 0.5b sampler audit
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase0-5b-sampler-audit
+          path: |
+            PHASE0_5B_SAMPLER_AUDIT_MANIFEST.json
+            phase0_5b_sampler_audit_results.json
           if-no-files-found: error
