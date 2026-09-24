@@ -43,6 +43,10 @@ jobs:
         run: |
           python run_phase0.py
 
+      - name: Audit rigid baseline anomaly
+        run: |
+          python rigid_anomaly_audit.py
+
       - name: Show generated files
         if: always()
         run: |
