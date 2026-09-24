@@ -75,6 +75,10 @@ jobs:
         run: |
           python phase0_5_bayes_targeted_proposal.py
 
+      - name: Run Phase 0.5b Bayes repair validation
+        run: |
+          python run_phase0_5b_validation.py
+
       - name: Show generated files
         if: always()
         run: |
@@ -104,4 +108,15 @@ jobs:
             phase0_5_confirmatory_results.json
             phase0_5_confirmatory_records.csv
             phase0_5_operational_prior.json
+          if-no-files-found: error
+
+      - name: Upload Phase 0.5b validation results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase0-5b-validation-results
+          path: |
+            PHASE0_5B_MANIFEST.json
+            phase0_5b_validation_results.json
+            phase0_5b_validation_records.csv
           if-no-files-found: error
