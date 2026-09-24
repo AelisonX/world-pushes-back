@@ -112,10 +112,6 @@ class BayesResult:
 def load_manifest(
     path: Path = MANIFEST_PATH,
 ) -> dict:
-    """
-    Load the frozen confirmatory manifest.
-    """
-
     with path.open(
         "r",
         encoding="utf-8",
@@ -140,10 +136,6 @@ def load_manifest(
 def manifest_sha256(
     path: Path = MANIFEST_PATH,
 ) -> str:
-    """
-    SHA256 of the exact manifest bytes used by the run.
-    """
-
     digest = hashlib.sha256()
 
     with path.open(
@@ -165,12 +157,6 @@ def manifest_sha256(
 
 
 def current_commit_sha() -> str:
-    """
-    Return the GitHub Actions SHA when available.
-
-    Fall back to local git for reproducible local execution.
-    """
-
     github_sha = os.environ.get(
         "GITHUB_SHA"
     )
@@ -198,10 +184,6 @@ def current_commit_sha() -> str:
 def validate_manifest(
     manifest: dict,
 ) -> None:
-    """
-    Validate critical frozen invariants before touching data.
-    """
-
     if (
         manifest[
             "manifest_version"
@@ -311,10 +293,6 @@ def validate_manifest(
 def parameter_dict(
     params,
 ) -> dict:
-    """
-    Serialize one hidden physical world.
-    """
-
     return {
         "material_yield_strength": (
             params.material_yield_strength
@@ -350,16 +328,6 @@ def generate_confirmatory_dataset(
     list[ObservationRecord],
     list[dict],
 ]:
-    """
-    Generate the frozen paired identification dataset.
-
-    Returns:
-
-    - compliant legal observations
-    - matched rigid-null observations
-    - full reproducibility provenance rows
-    """
-
     config = (
         manifest[
             "confirmatory_dataset"
@@ -572,7 +540,6 @@ def generate_confirmatory_dataset(
                 ),
                 "true_fx": true_fx,
                 "true_fy": true_fy,
-
                 "noise_fx": noise.fx,
                 "noise_fy": noise.fy,
                 "noise_tip_dx": (
@@ -581,7 +548,6 @@ def generate_confirmatory_dataset(
                 "noise_tip_dy": (
                     noise.tip_dy
                 ),
-
                 "fx": record.fx,
                 "fy": record.fy,
                 "tip_dx": (
@@ -590,7 +556,6 @@ def generate_confirmatory_dataset(
                 "tip_dy": (
                     record.tip_dy
                 ),
-
                 "rigid_fx": (
                     rigid_record.fx
                 ),
@@ -603,7 +568,6 @@ def generate_confirmatory_dataset(
                 "rigid_tip_dy": (
                     rigid_record.tip_dy
                 ),
-
                 "rho": record.rho,
                 "transition_margin": (
                     record.margin
@@ -661,13 +625,6 @@ def apply_global_label_shuffle(
     records: list[ObservationRecord],
     seed: int,
 ) -> list[ObservationRecord]:
-    """
-    Apply the frozen label shuffle once to the complete dataset.
-
-    Splitting happens only after this global shuffled-label
-    assignment has been created.
-    """
-
     shuffled_labels = (
         pair_preserving_shuffled_labels(
             records=records,
@@ -698,11 +655,6 @@ def evaluate_control_records(
     bootstrap_replicates: int,
     bootstrap_seed: int,
 ) -> ControlResult:
-    """
-    Fit one frozen control condition and compute mandatory
-    held-out metrics.
-    """
-
     train_view = (
         make_feature_view(
             records=train_records,
@@ -863,13 +815,6 @@ def evaluate_bayes_on_test(
     test_records: list[ObservationRecord],
     manifest: dict,
 ) -> BayesResult:
-    """
-    Evaluate the frozen 20k-particle Bayes reference on the
-    exact same held-out compliant records as the classifier.
-
-    Likelihood evaluation is vectorized for the official run.
-    """
-
     config = (
         manifest[
             "bayes_reference"
@@ -1166,11 +1111,6 @@ def evaluate_bayes_on_test(
         and yield_pass
     )
 
-    if not ess_pass:
-        raise RuntimeError(
-            "Confirmatory Bayes ESS criterion failed"
-        )
-
     return BayesResult(
         particles=n_particles,
         particles_per_class=(
@@ -1191,11 +1131,6 @@ def evaluate_bayes_on_test(
 def run_operational_prior(
     manifest: dict,
 ) -> dict:
-    """
-    Estimate frozen operational-prior prevalence separately
-    from the balanced identification experiment.
-    """
-
     config = (
         manifest[
             "operational_prior"
@@ -1301,10 +1236,6 @@ def write_records_csv(
     split,
     path: Path = RECORDS_PATH,
 ) -> None:
-    """
-    Save the complete provenance table.
-    """
-
     train_ids = (
         split.train_pair_ids
     )
@@ -1371,10 +1302,6 @@ def write_records_csv(
 
 
 def run_confirmatory() -> dict:
-    """
-    Execute the frozen Phase 0.5 confirmatory experiment.
-    """
-
     manifest = (
         load_manifest()
     )
@@ -1589,6 +1516,12 @@ def run_confirmatory() -> dict:
             "\n"
         )
 
+    status = (
+        "CONFIRMATORY_RUN_COMPLETE"
+        if bayes.ess_pass
+        else "CONFIRMATORY_RUN_INVALID_BAYES_ESS"
+    )
+
     final = {
         "experiment": (
             manifest[
@@ -1606,9 +1539,7 @@ def run_confirmatory() -> dict:
         "code_commit_sha": (
             commit_sha
         ),
-        "status": (
-            "CONFIRMATORY_RUN_COMPLETE"
-        ),
+        "status": status,
         "confirmatory_dataset": {
             "n_pairs": (
                 config[
@@ -1690,6 +1621,13 @@ def main():
     )
 
     print(
+        "status=",
+        result[
+            "status"
+        ],
+    )
+
+    print(
         "manifest_sha256=",
         result[
             "manifest_sha256"
@@ -1746,6 +1684,22 @@ def main():
         bayes[
             "ess_pass"
         ],
+    )
+
+    print()
+
+    print(
+        "Bayes ESS summary="
+    )
+
+    print(
+        json.dumps(
+            bayes[
+                "ess"
+            ],
+            indent=2,
+            sort_keys=True,
+        )
     )
 
     operational = (
