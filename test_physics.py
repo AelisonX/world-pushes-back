@@ -15,6 +15,7 @@ def make_params(
     material_yield_strength=120_000,
     contact_area=0.0001,
     contact_stiffness=20_000.0,
+    support_gain=1.0,
 ):
     return PhysicalParams(
         material_yield_strength=(
@@ -26,6 +27,9 @@ def make_params(
         kinetic_friction=0.25,
         contact_stiffness=(
             contact_stiffness
+        ),
+        support_gain=(
+            support_gain
         ),
     )
 
@@ -331,6 +335,31 @@ def test_support_load_fraction_decreases_with_static_friction():
     )
 
 
+def test_support_load_fraction_decreases_with_downward_force():
+    params = make_params()
+
+    low_downward_force = (
+        support_load_fraction(
+            params=params,
+            true_fx=10.0,
+            true_fy=1.0,
+        )
+    )
+
+    high_downward_force = (
+        support_load_fraction(
+            params=params,
+            true_fx=10.0,
+            true_fy=10.0,
+        )
+    )
+
+    assert (
+        high_downward_force
+        < low_downward_force
+    )
+
+
 def test_compliant_support_motion_increases_with_load_fraction():
     far_from_slip = (
         compute_pre_slip_support_motion(
@@ -388,3 +417,166 @@ def test_pre_slip_support_motion_preserves_direction():
 
     assert positive > 0
     assert negative < 0
+
+
+def test_higher_support_gain_increases_compliant_tip_motion():
+    low_gain = make_params(
+        support_gain=0.5,
+    )
+
+    high_gain = make_params(
+        support_gain=2.0,
+    )
+
+    action = Action(
+        force=5.0,
+        angle_deg=45.0,
+    )
+
+    low_result = run_safe_probe(
+        params=low_gain,
+        action=action,
+        support_model="compliant",
+        force_noise_std=0.0,
+        motion_noise_std=0.0,
+    )
+
+    high_result = run_safe_probe(
+        params=high_gain,
+        action=action,
+        support_model="compliant",
+        force_noise_std=0.0,
+        motion_noise_std=0.0,
+    )
+
+    assert (
+        abs(
+            high_result.observation.tip_dx
+        )
+        >
+        abs(
+            low_result.observation.tip_dx
+        )
+    )
+
+
+def test_support_gain_does_not_affect_rigid_support():
+    low_gain = make_params(
+        support_gain=0.5,
+    )
+
+    high_gain = make_params(
+        support_gain=2.0,
+    )
+
+    action = Action(
+        force=5.0,
+        angle_deg=45.0,
+    )
+
+    low_result = run_safe_probe(
+        params=low_gain,
+        action=action,
+        support_model="rigid",
+        force_noise_std=0.0,
+        motion_noise_std=0.0,
+    )
+
+    high_result = run_safe_probe(
+        params=high_gain,
+        action=action,
+        support_model="rigid",
+        force_noise_std=0.0,
+        motion_noise_std=0.0,
+    )
+
+    assert (
+        abs(
+            low_result.observation.tip_dx
+            - high_result.observation.tip_dx
+        )
+        < 1e-12
+    )
+
+    assert (
+        abs(
+            low_result.observation.tip_dy
+            - high_result.observation.tip_dy
+        )
+        < 1e-12
+    )
+
+
+def test_contact_stiffness_and_support_gain_act_independently():
+    soft_low_gain = make_params(
+        contact_stiffness=10_000.0,
+        support_gain=0.5,
+    )
+
+    stiff_high_gain = make_params(
+        contact_stiffness=40_000.0,
+        support_gain=2.0,
+    )
+
+    action = Action(
+        force=5.0,
+        angle_deg=45.0,
+    )
+
+    soft_low_result = run_safe_probe(
+        params=soft_low_gain,
+        action=action,
+        support_model="compliant",
+        force_noise_std=0.0,
+        motion_noise_std=0.0,
+    )
+
+    stiff_high_result = run_safe_probe(
+        params=stiff_high_gain,
+        action=action,
+        support_model="compliant",
+        force_noise_std=0.0,
+        motion_noise_std=0.0,
+    )
+
+    assert (
+        soft_low_result.observation.tip_dy
+        != stiff_high_result.observation.tip_dy
+    )
+
+    assert (
+        soft_low_gain.contact_stiffness
+        != stiff_high_gain.contact_stiffness
+    )
+
+    assert (
+        soft_low_gain.support_gain
+        != stiff_high_gain.support_gain
+    )
+
+
+def test_nonpositive_support_gain_is_rejected():
+    params = make_params(
+        support_gain=0.0,
+    )
+
+    try:
+        run_safe_probe(
+            params=params,
+            action=Action(
+                force=5.0,
+                angle_deg=45.0,
+            ),
+            support_model="compliant",
+            force_noise_std=0.0,
+            motion_noise_std=0.0,
+        )
+    except ValueError as error:
+        assert (
+            "support_gain"
+            in str(error)
+        )
+    else:
+        raise AssertionError(
+            "Expected nonpositive support gain to fail"
+        )
