@@ -20,12 +20,15 @@ def make_world(
     static_friction: float,
     material_yield_strength: float,
     container_mass: float = 20.0,
+    contact_area: float = 0.0001,
 ) -> PhysicalParams:
     return PhysicalParams(
         material_yield_strength=(
             material_yield_strength
         ),
-        contact_area=0.0001,
+        contact_area=(
+            contact_area
+        ),
         container_mass=container_mass,
         static_friction=static_friction,
         kinetic_friction=0.25,
@@ -55,7 +58,7 @@ def test_true_force_components_match_45_degree_probe():
     )
 
 
-def test_generated_safe_pair_is_safe_on_both_twins():
+def test_generated_safe_pair_is_safe_and_separated():
     random.seed(
         42
     )
@@ -93,6 +96,14 @@ def test_generated_safe_pair_is_safe_on_both_twins():
     assert (
         safety.rho_b
         < DEFAULT_RHO_SAFE_MAX
+    )
+
+    assert (
+        safety.separated_a
+    )
+
+    assert (
+        safety.separated_b
     )
 
 
@@ -239,6 +250,60 @@ def test_pair_is_rejected_when_one_twin_has_already_transitioned():
     )
 
 
+def test_pair_is_rejected_when_one_twin_is_near_tied():
+    near_tie_world = (
+        make_world(
+            static_friction=0.35,
+            material_yield_strength=(
+                96_075.0
+            ),
+            container_mass=20.0,
+            contact_area=0.0001,
+        )
+    )
+
+    separated_world = (
+        make_world(
+            static_friction=0.60,
+            material_yield_strength=80_000,
+            container_mass=20.0,
+            contact_area=0.0001,
+        )
+    )
+
+    pair = IdentificationPair(
+        pair_id=12,
+        world_a=near_tie_world,
+        world_b=separated_world,
+        label_a=(
+            NextTransition.MATERIAL_YIELD
+        ),
+        label_b=(
+            NextTransition.MATERIAL_YIELD
+        ),
+    )
+
+    safety = (
+        evaluate_pair_safety(
+            pair=pair,
+            action=Action(
+                force=5.0,
+                angle_deg=45.0,
+            ),
+            rho_safe_max=0.80,
+            epsilon_tie=0.10,
+        )
+    )
+
+    assert (
+        not safety.separated_a
+    )
+
+    assert (
+        not safety.safe_pair
+    )
+
+
 def test_invalid_rho_safe_max_is_rejected():
     random.seed(
         42
@@ -246,7 +311,7 @@ def test_invalid_rho_safe_max_is_rejected():
 
     sample = (
         generate_safe_pair_sample(
-            pair_id=12,
+            pair_id=13,
         )
     )
 
@@ -273,7 +338,41 @@ def test_invalid_rho_safe_max_is_rejected():
             )
 
 
-def test_multiple_safe_pairs_all_respect_budget():
+def test_invalid_epsilon_tie_is_rejected():
+    random.seed(
+        42
+    )
+
+    sample = (
+        generate_safe_pair_sample(
+            pair_id=14,
+        )
+    )
+
+    for invalid_value in [
+        0.0,
+        1.0,
+        -0.1,
+        1.1,
+    ]:
+        try:
+            evaluate_pair_safety(
+                pair=sample.pair,
+                action=sample.action,
+                epsilon_tie=invalid_value,
+            )
+        except ValueError as error:
+            assert (
+                "epsilon_tie"
+                in str(error)
+            )
+        else:
+            raise AssertionError(
+                "Expected invalid epsilon_tie to fail"
+            )
+
+
+def test_multiple_safe_pairs_all_respect_both_filters():
     random.seed(
         42
     )
@@ -295,4 +394,14 @@ def test_multiple_safe_pairs_all_respect_budget():
         assert (
             sample.rho_b
             < DEFAULT_RHO_SAFE_MAX
+        )
+
+        assert (
+            sample.margin_a
+            >= 0.10
+        )
+
+        assert (
+            sample.margin_b
+            >= 0.10
         )
