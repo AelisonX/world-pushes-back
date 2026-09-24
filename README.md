@@ -178,7 +178,7 @@ For each legal action:
 5. evaluate on held-out episodes
 6. report empirical separability
 
-The initial metric will be:
+The initial metric is:
 
 **cross-validated pairwise classification accuracy**
 
@@ -245,19 +245,77 @@ This information-versus-safety tradeoff is a central Phase 0 question.
 
 ---
 
+## Pre-slip compliance ablation
+
+The project compares two simplified support models.
+
+### Rigid support
+
+Idealized Coulomb support with no pre-slip support motion.
+
+Before the static-friction threshold is crossed, the support does not reveal how close it is to slipping.
+
+### Compliant support
+
+A simplified model in which small pre-slip displacement increases as loading approaches the support-slip threshold.
+
+This model is not intended as a complete description of real support mechanics.
+
+It is an explicit ablation used to ask:
+
+> If the physical world produces a measurable precursor before a transition, how strong must that precursor be relative to sensor noise before the transition becomes identifiable?
+
+---
+
+## Sensor ablation
+
+The project also tests which observation channels contain predictive information.
+
+Compared feature sets include:
+
+- force only
+- motion only
+- horizontal tool-tip motion only
+- full tool-side observation
+
+This helps distinguish genuine multi-channel information from cases where one sensor channel trivially reveals the answer.
+
+---
+
+## Minimum sensing requirement
+
+A dedicated sweep varies:
+
+- pre-slip displacement strength
+- motion sensor noise
+
+The goal is to estimate the sensing regime in which pre-transition classification becomes feasible.
+
+A precursor that is much smaller than sensor noise may be effectively unobservable.
+
+A precursor that is much larger than sensor noise may make the transition easy to identify.
+
+The project therefore studies the ratio:
+
+`physical precursor / sensor noise`
+
+as a possible governing quantity.
+
+---
+
 ## Kill criteria
 
-### Kill criterion A — No useful pre-slip information
+### Kill criterion A: No useful pre-slip information
 
 If no legal tool-side action can distinguish an impending support-slip transition meaningfully above chance before significant container motion occurs, stop and report that limitation.
 
 Do not silently fix the problem by adding direct container-pose sensing.
 
-### Kill criterion B — No safety benefit
+### Kill criterion B: No safety benefit
 
 If later active diagnosis improves transition inference but does not reduce unsafe force escalation compared with a push-harder baseline, the original safety motivation is not supported.
 
-### Kill criterion C — Excessive diagnostic cost
+### Kill criterion C: Excessive diagnostic cost
 
 If useful inference requires so many diagnostic actions that the interaction becomes impractically slow or violates the safety budget, the method is not useful under the intended setting.
 
@@ -265,19 +323,19 @@ If useful inference requires so many diagnostic actions that the interaction bec
 
 ## Planned phases
 
-### Phase 0 — Identifiability
+### Phase 0: Identifiability
 
 Can impending threshold transitions be distinguished from tool-side interaction at all?
 
-### Phase 1 — Diagnostic action value
+### Phase 1: Diagnostic action value
 
 Which legal physical actions provide the most useful information?
 
-### Phase 2 — Active diagnosis
+### Phase 2: Active diagnosis
 
 Can an agent choose informative actions under a safety and action budget?
 
-### Phase 3 — Safety consequence
+### Phase 3: Safety consequence
 
 Does active diagnosis reduce unsafe force escalation compared with a naive push-harder baseline?
 
@@ -299,6 +357,161 @@ This repository does not claim novelty for:
 - model-based control
 
 The narrower goal is to build an inspectable toy system for studying whether safe physical interaction can reveal competing contact-threshold transitions under limited sensing.
+
+---
+
+## Running the project
+
+### 1. Install dependencies
+
+Install the required Python packages:
+
+```bash
+pip install -r requirements.txt
+```
+
+### 2. Run regression tests
+
+```bash
+pytest -q
+```
+
+The tests check properties such as:
+
+- higher static friction increases the support-slip threshold
+- a heavier container increases the support-slip threshold
+- stronger material increases the material-yield threshold
+- larger contact area increases the material-yield threshold
+- rigid support produces no artificial pre-slip support motion
+- compliant pre-slip motion grows as the slip threshold is approached
+
+### 3. Run the basic identifiability test
+
+```bash
+python identifiability.py
+```
+
+This tests whether safe pre-transition tool-side observations contain enough information to predict which threshold will be reached first:
+
+- `MATERIAL_YIELD`
+- `SUPPORT_SLIP`
+
+### 4. Run the information-versus-safety force sweep
+
+```bash
+python force_sweep.py
+```
+
+This sweeps probe force and reports:
+
+- pre-transition separability
+- transition rate
+- number of safe samples
+
+The purpose is to test whether stronger probing produces useful information before increasing transition risk.
+
+### 5. Compare rigid and compliant support models
+
+```bash
+python compliance_ablation.py
+```
+
+This compares:
+
+- ideal rigid Coulomb support
+- simplified compliant pre-slip support
+
+The experiment asks whether measurable physical precursors are required for pre-transition identifiability.
+
+### 6. Run the sensor ablation
+
+```bash
+python sensor_ablation.py
+```
+
+This compares:
+
+- force only
+- motion only
+- horizontal tool-tip motion only
+- full tool-side observation
+
+The purpose is to identify which sensor channels actually carry predictive information.
+
+### 7. Sweep precursor strength versus sensor noise
+
+```bash
+python sensing_threshold.py
+```
+
+This tests how classification accuracy changes as:
+
+- pre-slip displacement strength changes
+- motion sensor noise changes
+
+### 8. Generate the sensing heatmap
+
+```bash
+python plot_sensing_heatmap.py
+```
+
+This creates:
+
+```text
+sensing_threshold_heatmap.png
+```
+
+The heatmap visualizes classification accuracy across precursor-strength and sensor-noise conditions.
+
+### 9. Test precursor-to-noise scaling
+
+```bash
+python snr_collapse.py
+```
+
+This creates:
+
+```text
+snr_collapse.png
+```
+
+The experiment tests whether identifiability approximately follows the ratio:
+
+`pre-slip precursor / sensor noise`
+
+### 10. Record Phase 0 results
+
+```bash
+python record_phase0_results.py
+```
+
+This creates:
+
+```text
+phase0_results.csv
+```
+
+The CSV stores:
+
+- support model
+- probe force
+- separability accuracy
+- transition rate
+- safe sample count
+
+---
+
+## Reproducibility notes
+
+Current experiments use fixed random seeds where practical.
+
+The simulator is intentionally simple so that:
+
+- physical assumptions remain inspectable
+- hidden state and agent-visible observations remain separate
+- experimental results can be traced to explicit modeling choices
+
+Generated results should be treated as properties of the current toy model, not as claims about real robotic hardware or real ice-cream mechanics.
 
 ---
 
@@ -326,7 +539,7 @@ These may be reconsidered only if the Phase 0 model demonstrates that the core p
 
 ## Current status
 
-Design freeze candidate.
+Design-freeze Phase 0 implementation.
 
 No benchmark claim yet.
 
@@ -336,7 +549,7 @@ No claim of general embodied intelligence.
 
 No claim that the hidden physical transition is identifiable in advance.
 
-The first implementation must test whether the problem itself is solvable under the stated sensing and safety assumptions.
+The current implementation first tests whether the problem itself is solvable under the stated sensing and safety assumptions.
 
 ---
 
