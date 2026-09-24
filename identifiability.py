@@ -8,8 +8,12 @@ from physics import (
     resolve_step,
 )
 
+from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score, classification_report
 
-NUM_SAMPLES = 1000
+
+NUM_SAMPLES = 3000
 
 
 def sample_params() -> PhysicalParams:
@@ -40,7 +44,7 @@ def collect_results(num_samples: int = NUM_SAMPLES):
 
         results.append(
             {
-                "mode": result.mode,
+                "mode": result.mode.value,
                 "fx": result.observation.fx,
                 "fy": result.observation.fy,
                 "tip_dx": result.observation.tip_dx,
@@ -51,7 +55,7 @@ def collect_results(num_samples: int = NUM_SAMPLES):
     return results
 
 
-def summarize(results):
+def summarize_modes(results):
     counts = Counter(item["mode"] for item in results)
 
     print("=== Mode counts ===")
@@ -59,40 +63,76 @@ def summarize(results):
     for mode in ContactMode:
         print(
             f"{mode.value}: "
-            f"{counts.get(mode, 0)}"
+            f"{counts.get(mode.value, 0)}"
         )
 
     print()
 
-    print("=== Example agent observations ===")
 
-    for mode in ContactMode:
-        examples = [
-            item for item in results
-            if item["mode"] == mode
-        ][:5]
+def build_dataset(results):
+    x = []
+    y = []
 
-        print(f"\n{mode.value}")
+    for item in results:
+        x.append(
+            [
+                item["fx"],
+                item["fy"],
+                item["tip_dx"],
+                item["tip_dy"],
+            ]
+        )
+        y.append(item["mode"])
 
-        if not examples:
-            print("  No samples")
-            continue
+    return x, y
 
-        for item in examples:
-            print(
-                "  "
-                f"Fx={item['fx']:.2f} N, "
-                f"Fy={item['fy']:.2f} N, "
-                f"tip_dx={item['tip_dx']:.5f} m, "
-                f"tip_dy={item['tip_dy']:.5f} m"
-            )
+
+def evaluate_separability(results):
+    x, y = build_dataset(results)
+
+    x_train, x_test, y_train, y_test = train_test_split(
+        x,
+        y,
+        test_size=0.30,
+        random_state=42,
+        stratify=y,
+    )
+
+    classifier = LogisticRegression(
+        max_iter=2000,
+    )
+
+    classifier.fit(x_train, y_train)
+
+    predictions = classifier.predict(x_test)
+
+    accuracy = accuracy_score(
+        y_test,
+        predictions,
+    )
+
+    print("=== Empirical separability ===")
+    print(f"Accuracy: {accuracy:.3f}")
+    print()
+
+    print("=== Classification report ===")
+    print(
+        classification_report(
+            y_test,
+            predictions,
+            digits=3,
+        )
+    )
 
 
 def main():
     random.seed(42)
 
     results = collect_results()
-    summarize(results)
+
+    summarize_modes(results)
+
+    evaluate_separability(results)
 
 
 if __name__ == "__main__":
