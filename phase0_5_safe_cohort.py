@@ -1,14 +1,18 @@
 from dataclasses import dataclass
 import math
 
+from phase0_5_margin import (
+    DEFAULT_EPSILON_TIE,
+    evaluate_pair_margin,
+)
 from phase0_5_pairs import (
     IdentificationPair,
     generate_identification_pair,
 )
 from physics import (
     Action,
-    support_load_fraction,
     predict_next_transition,
+    support_load_fraction,
 )
 
 
@@ -31,6 +35,10 @@ class PairSafetyCheck:
     blocked_b: bool
     rho_safe_a: bool
     rho_safe_b: bool
+    margin_a: float
+    margin_b: float
+    separated_a: bool
+    separated_b: bool
     safe_pair: bool
 
 
@@ -40,6 +48,8 @@ class SafePairSample:
     action: Action
     rho_a: float
     rho_b: float
+    margin_a: float
+    margin_b: float
 
 
 def true_force_components(
@@ -105,17 +115,27 @@ def evaluate_pair_safety(
     pair: IdentificationPair,
     action: Action,
     rho_safe_max: float = DEFAULT_RHO_SAFE_MAX,
+    epsilon_tie: float = DEFAULT_EPSILON_TIE,
 ) -> PairSafetyCheck:
     """
-    Evaluate whether both twins are safe under the same action.
+    Evaluate whether both twins are valid for one shared probe.
 
-    Official Phase 0.5 observations must satisfy:
+    Official Phase 0.5 observations require:
 
         rho < rho_safe_max < 1
 
-    and must remain below both transition thresholds.
+    for both twins,
 
-    If either twin fails, the entire pair is unsafe.
+    plus:
+
+        normalized transition margin >= epsilon_tie
+
+    for both twins,
+
+    and both twins must still remain below their first
+    transition threshold.
+
+    If either twin fails any condition, the whole pair fails.
     """
 
     if not (
@@ -174,11 +194,20 @@ def evaluate_pair_safety(
         < rho_safe_max
     )
 
+    margin_check = (
+        evaluate_pair_margin(
+            pair=pair,
+            angle_deg=action.angle_deg,
+            epsilon_tie=epsilon_tie,
+        )
+    )
+
     safe_pair = (
         blocked_a
         and blocked_b
         and rho_safe_a
         and rho_safe_b
+        and margin_check.separated_pair
     )
 
     return PairSafetyCheck(
@@ -189,6 +218,18 @@ def evaluate_pair_safety(
         blocked_b=blocked_b,
         rho_safe_a=rho_safe_a,
         rho_safe_b=rho_safe_b,
+        margin_a=(
+            margin_check.margin_a
+        ),
+        margin_b=(
+            margin_check.margin_b
+        ),
+        separated_a=(
+            margin_check.separated_a
+        ),
+        separated_b=(
+            margin_check.separated_b
+        ),
         safe_pair=safe_pair,
     )
 
@@ -197,11 +238,12 @@ def generate_safe_pair_sample(
     pair_id: int,
     action: Action | None = None,
     rho_safe_max: float = DEFAULT_RHO_SAFE_MAX,
+    epsilon_tie: float = DEFAULT_EPSILON_TIE,
     max_attempts: int = 10_000,
 ) -> SafePairSample:
     """
-    Generate one matched identification pair that is safe for
-    the same probe action on both twins.
+    Generate one matched pair that is both safe and
+    sufficiently separated from a transition tie.
     """
 
     if action is None:
@@ -225,6 +267,7 @@ def generate_safe_pair_sample(
                 pair=pair,
                 action=action,
                 rho_safe_max=rho_safe_max,
+                epsilon_tie=epsilon_tie,
             )
         )
 
@@ -236,10 +279,13 @@ def generate_safe_pair_sample(
             action=action,
             rho_a=safety.rho_a,
             rho_b=safety.rho_b,
+            margin_a=safety.margin_a,
+            margin_b=safety.margin_b,
         )
 
     raise RuntimeError(
-        "Could not generate a safe identification pair"
+        "Could not generate a safe, separated "
+        "identification pair"
     )
 
 
@@ -274,6 +320,11 @@ def main():
         DEFAULT_RHO_SAFE_MAX,
     )
 
+    print(
+        "epsilon_tie=",
+        DEFAULT_EPSILON_TIE,
+    )
+
     for pair_id in range(
         5
     ):
@@ -298,6 +349,11 @@ def main():
                 sample.rho_a,
                 4,
             ),
+            "margin=",
+            round(
+                sample.margin_a,
+                4,
+            ),
         )
 
         print(
@@ -306,6 +362,11 @@ def main():
             "rho=",
             round(
                 sample.rho_b,
+                4,
+            ),
+            "margin=",
+            round(
+                sample.margin_b,
                 4,
             ),
         )
