@@ -67,6 +67,10 @@ jobs:
         run: |
           python phase0_5_bayes_repair.py
 
+      - name: Run Phase 0.5 Bayes ESS channel ablation
+        run: |
+          python phase0_5_bayes_ess_ablation.py
+
       - name: Show generated files
         if: always()
         run: |
