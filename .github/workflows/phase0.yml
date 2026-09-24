@@ -59,12 +59,16 @@ jobs:
         run: |
           python phase0_5_bayes_ess.py
 
+      - name: Run frozen Phase 0.5 confirmatory experiment
+        run: |
+          python run_phase0_5_confirmatory.py
+
       - name: Show generated files
         if: always()
         run: |
           echo "Generated research outputs:"
           find . -maxdepth 1 \
-            \( -name "*.csv" -o -name "*.png" \) \
+            \( -name "*.csv" -o -name "*.png" -o -name "*.json" \) \
             -print
 
       - name: Upload Phase 0 results
@@ -77,3 +81,15 @@ jobs:
             sensing_threshold_heatmap.png
             snr_collapse.png
           if-no-files-found: warn
+
+      - name: Upload Phase 0.5 confirmatory results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase0-5-confirmatory-results
+          path: |
+            PHASE0_5_MANIFEST.json
+            phase0_5_confirmatory_results.json
+            phase0_5_confirmatory_records.csv
+            phase0_5_operational_prior.json
+          if-no-files-found: error
