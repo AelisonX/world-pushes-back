@@ -7,6 +7,9 @@ from physics import PhysicalParams
 DEFAULT_CONTACT_STIFFNESS_MIN = 10_000.0
 DEFAULT_CONTACT_STIFFNESS_MAX = 40_000.0
 
+DEFAULT_SUPPORT_GAIN_MIN = 0.5
+DEFAULT_SUPPORT_GAIN_MAX = 2.0
+
 
 def sample_log_uniform(
     low: float,
@@ -14,10 +17,6 @@ def sample_log_uniform(
 ) -> float:
     """
     Sample a positive value uniformly in log space.
-
-    This is useful for physical scale parameters such as stiffness,
-    where multiplicative variation is more natural than additive
-    variation.
     """
 
     if low <= 0:
@@ -53,21 +52,37 @@ def sample_phase0_5_world(
     contact_stiffness_max: float = (
         DEFAULT_CONTACT_STIFFNESS_MAX
     ),
+    support_gain_min: float = (
+        DEFAULT_SUPPORT_GAIN_MIN
+    ),
+    support_gain_max: float = (
+        DEFAULT_SUPPORT_GAIN_MAX
+    ),
 ) -> PhysicalParams:
     """
     Generate one exploratory Phase 0.5 world.
 
-    At this stage the only new randomized nuisance variable is
-    contact_stiffness.
+    New Phase 0.5 nuisance variables:
 
-    The numerical stiffness range is exploratory and is NOT yet a
-    frozen confirmatory Phase 0.5 range.
+    - contact_stiffness
+    - support_gain
+
+    Their numerical ranges are exploratory only.
+
+    They are NOT frozen confirmatory Phase 0.5 ranges.
     """
 
     contact_stiffness = (
         sample_log_uniform(
             contact_stiffness_min,
             contact_stiffness_max,
+        )
+    )
+
+    support_gain = (
+        sample_log_uniform(
+            support_gain_min,
+            support_gain_max,
         )
     )
 
@@ -95,6 +110,9 @@ def sample_phase0_5_world(
         contact_stiffness=(
             contact_stiffness
         ),
+        support_gain=(
+            support_gain
+        ),
     )
 
 
@@ -108,7 +126,7 @@ def main():
     )
 
     print(
-        "contact_stiffness_N_per_m"
+        "contact_stiffness_N_per_m | support_gain"
     )
 
     for _ in range(10):
@@ -117,7 +135,9 @@ def main():
         )
 
         print(
-            f"{world.contact_stiffness:.3f}"
+            f"{world.contact_stiffness:10.3f}"
+            f" | "
+            f"{world.support_gain:.4f}"
         )
 
 
