@@ -1,253 +1,349 @@
 # world-pushes-back
 
-A small experimental benchmark for physical mismatch attribution under partial observability.
+A small experimental sandbox for testing whether tool-side interaction can reveal impending physical constraint transitions under a safety budget.
 
-An agent may observe that an action did not produce the expected result. The harder problem is determining why.
+## Motivating scenario
 
-> An error signal tells you something went wrong. Attribution tells you what.
+### The Ice Cream Problem
 
-## Research question
+Imagine a robot trying to scoop very hard ice cream from a movable container.
 
-When several hidden physical causes can produce similar tool-side observations, can an agent actively probe the environment, identify the likely cause, and choose a safe corrective action?
-
-## Example 001: The Ice Cream Problem
-
-Imagine a robot trying to scoop very hard ice cream from a movable freezer.
-
-From the robot's tool-side sensors, several different physical situations may look similar:
-
-- the material is too hard
-- the scoop angle is poor
-- the scoop hits the container wall
-- the container is sliding
-- the tool is bending
-
-In all of these cases, the robot may initially observe:
-
-- high reaction force
-- little scoop displacement
-
-A naive policy might respond with:
-
-`blocked -> push harder`
-
-That can make the situation worse.
-
-The purpose of this benchmark is not to model realistic ice-cream scooping in full detail.
-
-It is to test whether an agent can distinguish among hidden causes of failure and choose a safer response.
-
-## Hidden causes
-
-The first version uses a small discrete cause set:
-
-- `HARD_MATERIAL`
-- `BAD_ANGLE`
-- `WALL_CONTACT`
-- `CONTAINER_SLIDING`
-- `TOOL_BENDING`
-
-These causes are intentionally designed to produce overlapping observations.
-
-A single observation may therefore be insufficient to identify the cause.
-
-## Partial observability
-
-By default, the agent receives only tool-side observations:
-
-- reaction force
-- tool displacement
-- tool deformation
-
-The agent does not directly observe the container position.
-
-Sensor noise may also be added.
-
-This means that similar observations can correspond to different hidden world states.
-
-## Diagnostic actions
-
-The agent may choose actions such as:
-
-- `PUSH(F, theta)`
-- `PROBE`
-- `CHANGE_ANGLE`
-- `REDUCE_CONTACT_AREA`
-- `BRACE_CONTAINER`
-- `STOP`
-
-Some actions are useful mainly for completing the task.
-
-Others are useful because they reveal information.
-
-This allows the benchmark to test whether an agent can use physical interaction as a diagnostic probe.
-
-## Attribution loop
-
-The intended loop is:
-
-1. perform an action
-2. observe the tool-side response
-3. compare expected and observed behavior
-4. maintain candidate causes
-5. choose a diagnostic probe if uncertainty remains
-6. update the estimated cause
-7. choose a corrective action
-8. stop if safety constraints would be violated
-
-The commanded-versus-observed mismatch is treated as evidence, not as the final research target.
-
-## Minimal physical model
-
-The first version will use a quasi-static 2D model with a small parameter set:
-
-- applied force `F`
-- force angle `theta`
-- contact area `A`
-- material yield strength `sigma_y`
-- container mass `m`
-- static friction coefficient `mu_s`
-- kinetic friction coefficient `mu_k`
-- tool stiffness `k`
-- tool load limit
-- `braced` state
-- sensor noise
-
-The model is deliberately simplified.
-
-It is a diagnosis benchmark, not a high-fidelity ice-cream simulator.
-
-## Example physical interaction
-
-A container may begin to slide when the horizontal force component exceeds the available static friction.
-
-A simplified condition is:
-
-`F * cos(theta) > mu_s * (m * g + F * sin(theta))`
-
-This means that changing the force angle can affect whether the container remains stable.
-
-A corrective action can therefore be physically meaningful rather than purely heuristic.
-
-## Policies
-
-Version 0.1 will compare three simple policies.
-
-### 1. Push-harder baseline
-
-A deliberately naive policy:
+A naive response to resistance is:
 
 `blocked -> increase force`
 
-This baseline demonstrates how blind force escalation can create unnecessary constraint violations.
+But increasing force does not guarantee that the scoop will penetrate the material.
 
-### 2. Heuristic policy
+The applied load may instead exceed the support friction of the container, causing the entire container to slide.
 
-A fixed-rule policy that reacts to patterns in the observations.
+The motivating safety problem is therefore:
 
-For example:
+> Blind force escalation can move the environment instead of completing the intended manipulation.
 
-- high tool deformation -> reduce force or stop
-- high force with low displacement -> change angle
-- suspected container motion -> brace before retrying
+This repository does not attempt to model realistic ice-cream rheology.
 
-### 3. Probe-then-act policy
+The ice-cream scenario is a simple physical story for studying competing thresholds during contact.
 
-A diagnostic policy that:
+---
 
-1. maintains candidate causes
-2. chooses a probe action
-3. updates cause likelihoods
-4. attributes the mismatch
-5. selects a corrective action
+## Phase 0 research question
 
-The goal is not merely to act successfully, but to identify why the original action failed.
+Before building an agent or a policy, we ask a simpler question:
 
-## Safety constraints
+> How much information about an impending support-slip transition is available from safe tool-side interaction before significant slip occurs?
 
-Task completion is not sufficient.
+This is an identifiability question.
 
-The benchmark will track measurable constraints such as:
+The project does not assume that the answer is positive.
 
-- maximum contact force
-- maximum container displacement
-- maximum tool deformation
-- keep-out-zone violations
-- tool overload
+If the minimal physical model makes the transition impossible to infer before it occurs, that is itself a useful Phase 0 result.
 
-A policy may therefore fail even if it eventually obtains the target.
+---
 
-## Evaluation metrics
+## Physical competition
 
-The first evaluation will report:
+The first version studies two competing physical thresholds:
 
-- cause attribution accuracy
-- task success rate
-- constraint violation rate
+1. material yield
+2. support slip
+
+As applied load increases, one threshold is reached first.
+
+Conceptually:
+
+`CONTACT_BLOCKED`
+
+then either:
+
+`MATERIAL_YIELD`
+
+or:
+
+`SUPPORT_SLIP`
+
+If material yield occurs first, the tool begins to penetrate the material.
+
+If support slip occurs first, the container begins to move.
+
+The central question is whether tool-side observations contain enough information to estimate which transition is approaching before unsafe force escalation occurs.
+
+---
+
+## Contact-mode state machine
+
+Version 0.1 uses three contact-mode states:
+
+- `CONTACT_BLOCKED`
+- `MATERIAL_YIELD`
+- `SUPPORT_SLIP`
+
+These are states, not fixed episode labels.
+
+A single episode may transition from:
+
+`CONTACT_BLOCKED -> MATERIAL_YIELD`
+
+or:
+
+`CONTACT_BLOCKED -> SUPPORT_SLIP`
+
+The model therefore treats contact mode as a state variable rather than a permanent cause class.
+
+---
+
+## Hidden physical parameters
+
+The current minimal parameter set includes:
+
+- material yield strength
+- contact area
+- container mass
+- static friction coefficient
+- kinetic friction coefficient
+- applied force
+- force direction
+
+These parameters determine the thresholds at which material yield or support slip occurs.
+
+Tool stiffness may be added later if required, but it is not part of the first minimal model.
+
+---
+
+## Observation space
+
+The default condition provides tool-side observations only.
+
+Candidate observations include:
+
+- `Fx`
+- `Fy`
+- incremental tool-tip motion
+- sensor noise
+
+The reference frame for tool-tip motion must be explicitly defined in the simulator.
+
+Direct container pose or velocity is not available in the default condition.
+
+This is intentional.
+
+The project asks whether useful information about support stability can be extracted without directly observing the container.
+
+---
+
+## Action space
+
+Phase 0 does not use a generic `PROBE` action.
+
+All diagnostic interactions must be ordinary physical actions.
+
+Initial candidate actions include:
+
+- `LOW_FORCE_PUSH`
+- `LATERAL_NUDGE`
+- `UNLOAD_AND_HOLD`
+- `STOP`
+
+The purpose of an action may be either:
+
+- task progress
+- information gathering
+- risk reduction
+
+A diagnostic action is therefore an intervention on the physical system, not a direct query for the hidden state.
+
+---
+
+## Why identifiability comes first
+
+A policy cannot reliably infer a hidden physical condition if the observation model contains no information that distinguishes it.
+
+Before building an active diagnosis policy, this repository first asks:
+
+> Do different threshold regimes actually produce distinguishable tool-side observation sequences under legal actions?
+
+If they do not, no downstream policy should be credited for solving the problem.
+
+This is the Phase 0 gate.
+
+---
+
+## Phase 0 experiment
+
+For each legal action:
+
+1. sample physical parameters from predefined ranges
+2. simulate tool-side observation sequences
+3. separate episodes by resulting transition
+4. train a simple classifier on the observation sequences
+5. evaluate on held-out episodes
+6. report empirical separability
+
+The initial metric will be:
+
+**cross-validated pairwise classification accuracy**
+
+This is deliberately simple.
+
+The first goal is to determine whether discriminative information exists at all.
+
+Information-theoretic metrics can be added later if needed.
+
+---
+
+## Required experimental assumptions
+
+Any identifiability result depends on the experimental setup.
+
+The following must therefore be stated explicitly:
+
+- observation horizon
+- control timestep
+- force limits
+- parameter sampling ranges
+- sensor noise model
+- action magnitudes
+- initial conditions
+- coordinate reference frames
+- container-pose visibility
+- safety budget
+
+Without these assumptions, an identifiability result is not interpretable.
+
+---
+
+## Safety budget
+
+The project is not only interested in classification accuracy.
+
+Diagnostic interaction itself can be risky.
+
+A useful method must operate under measurable limits such as:
+
 - maximum applied force
 - maximum container displacement
-- number of actions
-- number of diagnostic probes
+- maximum number of diagnostic actions
+- optional keep-out-zone constraints
 
-## Ablation
+The project therefore treats information gathering as a constrained physical process.
 
-A simple ablation will compare:
+---
 
-### Tool-side sensing only
+## Core tradeoff
 
-The agent observes:
+In an idealized Coulomb-friction system, a container below the static-friction threshold may reveal very little about how close it is to slipping.
 
-- reaction force
-- tool displacement
-- tool deformation
+For example, a small safe push may produce the same observable response for:
 
-### Tool-side sensing + container position
+- a highly stable container
+- a container very close to the slip threshold
 
-The agent also receives the container position.
+This creates a possible tension:
 
-This tests how much the attribution problem depends on partial observability.
+> More informative probing may require approaching the same physical threshold that safe behavior is trying to avoid.
 
-## Related work
+This information-versus-safety tradeoff is a central Phase 0 question.
 
-This project is not intended to introduce command-observation mismatch as a new concept.
+---
 
-Relevant areas include:
+## Kill criteria
 
-- forward models and efference copy
+### Kill criterion A — No useful pre-slip information
+
+If no legal tool-side action can distinguish an impending support-slip transition meaningfully above chance before significant container motion occurs, stop and report that limitation.
+
+Do not silently fix the problem by adding direct container-pose sensing.
+
+### Kill criterion B — No safety benefit
+
+If later active diagnosis improves transition inference but does not reduce unsafe force escalation compared with a push-harder baseline, the original safety motivation is not supported.
+
+### Kill criterion C — Excessive diagnostic cost
+
+If useful inference requires so many diagnostic actions that the interaction becomes impractically slow or violates the safety budget, the method is not useful under the intended setting.
+
+---
+
+## Planned phases
+
+### Phase 0 — Identifiability
+
+Can impending threshold transitions be distinguished from tool-side interaction at all?
+
+### Phase 1 — Diagnostic action value
+
+Which legal physical actions provide the most useful information?
+
+### Phase 2 — Active diagnosis
+
+Can an agent choose informative actions under a safety and action budget?
+
+### Phase 3 — Safety consequence
+
+Does active diagnosis reduce unsafe force escalation compared with a naive push-harder baseline?
+
+---
+
+## Related work positioning
+
+This repository does not claim novelty for:
+
 - feedback control
-- Kalman-filter innovation
+- command-observation mismatch
+- forward models
+- Kalman innovation
 - disturbance observers
 - fault detection and isolation
 - interactive perception
-- contact and collision detection
 - system identification
+- contact detection
 - model-based control
-- safe and constrained control
 
-The purpose of this repository is narrower:
+The narrower goal is to build an inspectable toy system for studying whether safe physical interaction can reveal competing contact-threshold transitions under limited sensing.
 
-to build a small, understandable benchmark for physical cause attribution under ambiguous contact observations.
+---
 
-## Falsifiable target
+## Deliberate exclusions
 
-The benchmark is intended to support claims of the form:
+Version 0.1 does not include:
 
-> Under tool-side-only sensing, blind force escalation produces more constraint violations than a probe-then-act policy, while the probe-then-act policy improves hidden-cause attribution.
+- geometric jam modes
+- rotational degrees of freedom
+- multi-point contact
+- realistic ice-cream rheology
+- temperature-dependent material models
+- ROS
+- MuJoCo
+- Isaac Sim
+- Gazebo
+- reinforcement learning
+- LLM agents
+- active-inference branding
+- synthetic digestive systems
 
-Exact numerical results will be reported only after experiments are implemented.
+These may be reconsidered only if the Phase 0 model demonstrates that the core problem is worth extending.
 
-## Status
+---
 
-Early experimental sandbox.
+## Current status
 
-No claim of human-like physical understanding.
+Design freeze candidate.
 
-No claim that successful task completion implies safe or intelligent behavior.
+No benchmark claim yet.
 
-No claim that mismatch detection itself is novel.
+No policy claim yet.
+
+No claim of general embodied intelligence.
+
+No claim that the hidden physical transition is identifiable in advance.
+
+The first implementation must test whether the problem itself is solvable under the stated sensing and safety assumptions.
+
+---
 
 ## Working principle
 
-The world may not respond as commanded.
+> The world can reject a command in different physical ways.
 
-The useful question is why.
+The first question is not how an agent should respond.
+
+The first question is whether the difference can be observed safely.
