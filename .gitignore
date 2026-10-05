@@ -216,3 +216,9 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Generated Phase 1B data; exact-copy checksums: PHASE1B_ARTIFACTS.json
+/phase1b_r1_worlds.json
+/phase1b_r1_records.npz
+/phase1b_r2_worlds.json
+/phase1b_r2_records.npz

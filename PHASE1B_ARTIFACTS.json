@@ -1,0 +1,70 @@
+{
+  "schema_version": "1.0",
+  "purpose": "Governance of generated Phase 1B reproducibility artifacts; not normative source files.",
+  "scientific_commit": "6175edfa62e32dbb0fcc1955f4347ab412e06d8a",
+  "storage_policy": "Retain the four existing files locally; exclude only these exact filenames from normal Git history. No deletion, upload or remote artifact archive has been performed.",
+  "verification": "SHA-256 and sizes below identify the exact original local copies and match phase1b_provenance.json.",
+  "result_integrity": "The four files existed at experiment completion and were checked in the final integrity audit. Their absence from a checkout does not invalidate the committed result: both experiments were independently reproduced from frozen configuration and matched the saved worlds, arrays, controls and reports.",
+  "regeneration": {
+    "entry_point": "python phase1b_action_value.py",
+    "configuration": [
+      "PHASE1B_PLAN.md",
+      "PHASE1B_MANIFEST.json",
+      "phase1b_provenance.json"
+    ],
+    "environment": "Use the dependency versions recorded in phase1b_provenance.json and the matching source commit. The runner uses the frozen R1/R2 seeds. Run in a separate reproduction checkout to avoid overwriting original local evidence.",
+    "comparison": "Verify scientific reports and loaded NPZ arrays against phase1b_results.json. Check the hashes below to verify exact archived local copies. Equivalent data written with other newline/container formats may have different byte hashes.",
+    "raw_hash_portability": "Git normalises text line endings. A default checkout is not guaranteed to pass the runner's raw-byte freeze guards. Restore the historical text-byte profiles below in the separate reproduction checkout, then verify every provenance-tracked input hash before running. Do not change frozen hash constants or experiment settings.",
+    "historical_input_byte_profiles": {
+      "CRLF": [
+        "PHASE1B_MANIFEST.json",
+        "phase1b_action_value.py",
+        "phase1b_results.json",
+        "physics.py",
+        "phase1a_feasibility.py",
+        "phase0_5_pairs.py",
+        "phase0_5_worlds.py",
+        "phase0_5_margin.py",
+        "phase0_5b_sampler_audit.py",
+        "PHASE1A_FEASIBILITY_MANIFEST.json"
+      ],
+      "LF_WITH_FINAL_CRLF": [
+        "PHASE1B_PLAN.md",
+        "test_phase1b_action_value.py"
+      ],
+      "LF": []
+    },
+    "profile_rules": {
+      "LF": "Use Git blob bytes with CRLF converted to LF.",
+      "CRLF": "Use Git blob bytes normalised to LF, then replace every LF with CRLF.",
+      "LF_WITH_FINAL_CRLF": "Use Git blob bytes normalised to LF; replace only the final LF with CRLF. Preserve all other bytes, including encoding/BOM if present."
+    },
+    "profile_validation": "The historical bytes of every listed file were reconstructed in memory from commit Git blobs and matched the original SHA-256 in phase1b_provenance.json. No source files were rewritten."
+  },
+  "artifacts": [
+    {
+      "filename": "phase1b_r1_worlds.json",
+      "size_bytes": 4307790,
+      "sha256": "9e74c34335ec568522d6d8a40ef705e16b3b6b3384828a4f54951195fc1e7bbb",
+      "role": "R1 worlds"
+    },
+    {
+      "filename": "phase1b_r1_records.npz",
+      "size_bytes": 1828707,
+      "sha256": "a520cc9910dd4b12159fd3ddfc57ae8183ab22e59567bc1fc9c8be6e4521aefa",
+      "role": "R1 records"
+    },
+    {
+      "filename": "phase1b_r2_worlds.json",
+      "size_bytes": 4342122,
+      "sha256": "b5b47e1d4fd8c99b382b024061711351b47c122d218df1627bd2b0d167429fee",
+      "role": "R2 worlds"
+    },
+    {
+      "filename": "phase1b_r2_records.npz",
+      "size_bytes": 1843089,
+      "sha256": "926348fd498071a6185813d79644da86285ad83184961f16613f106f33753726",
+      "role": "R2 records"
+    }
+  ]
+}

@@ -106,3 +106,7 @@ All nine actions and both classes passed. The audit uses 50 held-out world rows 
 ## Human review stop
 
 The local Phase 1B result passes the frozen acceptance rules. Review the metric choice, 0.02-bit rationale, conditional-prior limits and full controls before authorising a commit. README and PROJECT_STATUS have deliberately not been advanced to a new public claim. STOP: no commit or push until human review.
+
+## Generated-artifact governance
+
+The four R1/R2 worlds JSON and records NPZ files existed at experiment completion and were intentionally excluded from normal Git history. They remain local; exact-copy checksums, sizes and regeneration requirements are recorded separately in [PHASE1B_ARTIFACTS.json](PHASE1B_ARTIFACTS.json). The frozen experiment can be regenerated with the recorded source, seeds and dependency versions; see the metadata's historical text-byte profiles because Git newline conversion affects the raw-byte freeze checks.
