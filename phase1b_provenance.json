@@ -1,0 +1,32 @@
+{
+  "baseline_commit": "4f6377c",
+  "status": "LOCAL_UNCOMMITTED_AWAITING_HUMAN_REVIEW",
+  "versions": {
+    "python": "3.12.14",
+    "numpy": "2.5.3",
+    "scikit-learn": "1.9.1",
+    "scipy": "1.18.1",
+    "pytest": "9.1.1",
+    "matplotlib": "3.11.2"
+  },
+  "sha256": {
+    "PHASE1B_MANIFEST.json": "65f8e380e092a1720923ca11389392a4b1499ca519fc7237278d496add87dad8",
+    "PHASE1B_PLAN.md": "965f81f427c0e161322861501c22ba18b1b29c91f681e85a4fe012cb2ea4adf7",
+    "phase1b_action_value.py": "c1ba747dfcda7a09d230500dcf00807f584a595f5a8f47ab1e112f2599e9d9a5",
+    "test_phase1b_action_value.py": "d0f27cf50181f3bc229586c9f9b8d85a98f523a354895cf08dcfd149f8da3ec8",
+    "phase1b_results.json": "bdc0ed92ad5341519b5288d788d3703c68f247dbd9595225f7b1b026f2193c42",
+    "phase1b_r1_worlds.json": "9e74c34335ec568522d6d8a40ef705e16b3b6b3384828a4f54951195fc1e7bbb",
+    "phase1b_r2_worlds.json": "b5b47e1d4fd8c99b382b024061711351b47c122d218df1627bd2b0d167429fee",
+    "phase1b_r1_records.npz": "a520cc9910dd4b12159fd3ddfc57ae8183ab22e59567bc1fc9c8be6e4521aefa",
+    "phase1b_r2_records.npz": "926348fd498071a6185813d79644da86285ad83184961f16613f106f33753726",
+    "physics.py": "12acf0a3b50350ad14f0ca5d017d695d8978fe4a7894ae708faba77b003b0d80",
+    "phase1a_feasibility.py": "fe1ee21da56c82b396de603cd29e424e4455e4c7d840515512d2895c49dfe98f",
+    "phase0_5_pairs.py": "e45dade0044d31b8c5279af1a90de02b6ba3c4accc7aa5f40df8a02162c5bab6",
+    "phase0_5_worlds.py": "bab322aaa386101ac75ac281f7751c526dbd4847d750c120f359a30c880552a1",
+    "phase0_5_margin.py": "3f7a8b1b74f3f26f827067be843bfb5cb28a727f8146012f6eaa3e889830a49a",
+    "phase0_5b_sampler_audit.py": "bf6641402c3ac26a83b57be5144c6862ed73cdb3ef0491a2e840f771dfeef997",
+    "PHASE1A_FEASIBILITY_MANIFEST.json": "55f94b75ad7786d1f3d63747acdbb38fa6d7e29e8506619f39b776d898d21e34"
+  },
+  "saved_array_and_identity_integrity": "PASS",
+  "public_claims": "NONE UNTIL HUMAN REVIEW"
+}
