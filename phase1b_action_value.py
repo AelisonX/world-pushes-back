@@ -33,8 +33,22 @@ def digest(path):
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
+def frozen_digest(path, profile):
+    """Reconstruct only the documented frozen text newline representation."""
+    data = Path(path).read_bytes().replace(b'\r\n', b'\n')
+    if profile == 'CRLF':
+        data = data.replace(b'\n', b'\r\n')
+    elif profile == 'LF_WITH_FINAL_CRLF':
+        if data.endswith(b'\n'):
+            data = data[:-1] + b'\r\n'
+    else:
+        raise ValueError('Unknown frozen newline profile: ' + profile)
+    return hashlib.sha256(data).hexdigest()
+
+
 def load_manifest():
-    if digest(MANIFEST) != EXPECTED_MANIFEST_HASH or digest(PLAN) != EXPECTED_PLAN_HASH:
+    if (frozen_digest(MANIFEST, 'CRLF') != EXPECTED_MANIFEST_HASH
+            or frozen_digest(PLAN, 'LF_WITH_FINAL_CRLF') != EXPECTED_PLAN_HASH):
         raise GateFailure('Frozen design hash changed')
     manifest = json.loads(MANIFEST.read_text(encoding='utf-8'))
     parent = json.loads(Path('PHASE1A_FEASIBILITY_MANIFEST.json').read_text())

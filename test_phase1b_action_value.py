@@ -111,3 +111,59 @@ def test_decision_negative_inconclusive_success_and_stop():
     bad=report([.03,.05]); bad['robustness_primary_bits']['interior_subset']=[0.,.1]
     with pytest.raises(GateFailure,match='robustness'):
         decide([report([.03,.05]),bad],.02)
+
+
+@pytest.mark.parametrize('name,profile,expected', [
+    ('PHASE1B_MANIFEST.json', 'CRLF', '65f8e380e092a1720923ca11389392a4b1499ca519fc7237278d496add87dad8'),
+    ('PHASE1B_PLAN.md', 'LF_WITH_FINAL_CRLF', '965f81f427c0e161322861501c22ba18b1b29c91f681e85a4fe012cb2ea4adf7'),
+])
+@pytest.mark.parametrize('checkout', ['LF', 'CRLF', 'historical'])
+def test_frozen_digest_checkout_portability(monkeypatch, name, profile, expected, checkout):
+    from pathlib import Path
+    from phase1b_action_value import frozen_digest
+    data = Path(name).read_bytes().replace(b'\r\n', b'\n')
+    if checkout == 'CRLF':
+        data = data.replace(b'\n', b'\r\n')
+    elif checkout == 'historical':
+        data = (data.replace(b'\n', b'\r\n') if profile == 'CRLF'
+                else data[:-1] + b'\r\n')
+    monkeypatch.setattr(Path, 'read_bytes', lambda path: data)
+    assert frozen_digest(name, profile) == expected
+
+
+@pytest.mark.parametrize('target', ['PHASE1B_MANIFEST.json', 'PHASE1B_PLAN.md'])
+@pytest.mark.parametrize('mutation', ['content', 'space', 'missing_final_newline', 'bare_CR'])
+def test_frozen_gate_rejects_other_changes(monkeypatch, target, mutation):
+    from pathlib import Path
+    original = Path.read_bytes
+    def changed(path):
+        data = original(path).replace(b'\r\n', b'\n')
+        if path.name == target:
+            if mutation == 'content':
+                data = data.replace(b'Phase', b'phase', 1)
+                # The manifest may use lowercase keys rather than a Phase title.
+                if data == original(path).replace(b'\r\n', b'\n'):
+                    data = b'X' + data[1:]
+            elif mutation == 'space':
+                data = b' ' + data
+            elif mutation == 'missing_final_newline':
+                data = data[:-1]
+            else:
+                data = data.replace(b'\n', b'\r', 1)
+        return data
+    monkeypatch.setattr(Path, 'read_bytes', changed)
+    with pytest.raises(GateFailure, match='Frozen design hash changed'):
+        load_manifest()
+
+
+def test_frozen_gate_accepts_lf_checkout(monkeypatch):
+    from pathlib import Path
+    original = Path.read_bytes
+    monkeypatch.setattr(Path, 'read_bytes', lambda path: original(path).replace(b'\r\n', b'\n'))
+    assert load_manifest()['minimum_meaningful_effect_bits'] == .02
+
+
+def test_unknown_frozen_profile_rejected():
+    from phase1b_action_value import frozen_digest
+    with pytest.raises(ValueError, match='Unknown frozen newline profile'):
+        frozen_digest('PHASE1B_MANIFEST.json', 'unknown')

@@ -14,7 +14,7 @@
     ],
     "environment": "Use the dependency versions recorded in phase1b_provenance.json and the matching source commit. The runner uses the frozen R1/R2 seeds. Run in a separate reproduction checkout to avoid overwriting original local evidence.",
     "comparison": "Verify scientific reports and loaded NPZ arrays against phase1b_results.json. Check the hashes below to verify exact archived local copies. Equivalent data written with other newline/container formats may have different byte hashes.",
-    "raw_hash_portability": "Git normalises text line endings. A default checkout is not guaranteed to pass the runner's raw-byte freeze guards. Restore the historical text-byte profiles below in the separate reproduction checkout, then verify every provenance-tracked input hash before running. Do not change frozen hash constants or experiment settings.",
+    "raw_hash_portability": "Git normalises text line endings. The runner now reconstructs the documented CRLF manifest and LF_WITH_FINAL_CRLF plan profiles before comparing the unchanged frozen hashes. Historical raw-byte provenance verification of other files still requires the profiles below. Restore the historical text-byte profiles below in the separate reproduction checkout, then verify every provenance-tracked input hash before running. Do not change frozen hash constants or experiment settings.",
     "historical_input_byte_profiles": {
       "CRLF": [
         "PHASE1B_MANIFEST.json",
